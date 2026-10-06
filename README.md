@@ -99,8 +99,6 @@ DISPLAY_NAME=Alex   # greeting + coach tone; default "there"
 |-------|-------|-------|
 | ![](docs/screenshots/desktop-today.png) | ![](docs/screenshots/desktop-heart.png) | ![](docs/screenshots/desktop-coach.png) |
 
-Mobile: ![Mobile Today (sample)](docs/screenshots/mobile-today.png)
-
 ## Tests
 
 ```bash

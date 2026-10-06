@@ -10,7 +10,6 @@ const outDir = path.join(__dirname, '..', 'docs', 'screenshots');
 fs.mkdirSync(outDir, { recursive: true });
 
 const DESKTOP = { width: 1440, height: 1000 };
-const MOBILE = { width: 390, height: 844 };
 const SAMPLE_COACH = `## Sleep check
 
 Your **resting HR** is steady on the sample set.
@@ -146,30 +145,10 @@ async function waitReady(page, { minCanvas = 1, noIntraday = false } = {}) {
     await ctx.close();
   }
 
-  {
-    const ctx = await browser.newContext({
-      viewport: MOBILE,
-      deviceScaleFactor: 2,
-      colorScheme: 'dark',
-      timezoneId: 'Asia/Kolkata',
-      isMobile: true,
-      hasTouch: true,
-    });
-    const page = await ctx.newPage();
-    await login(page);
-    await prepSampleAlex(page);
-    await openHash(page, '#/today');
-    await waitReady(page, { minCanvas: 1 });
-    await page.screenshot({ path: path.join(outDir, 'mobile-today.png'), fullPage: false });
-    console.log('wrote mobile-today.png');
-    await restoreReal(page, priorName);
-    await ctx.close();
-  }
-
   await browser.close();
 
   const sizes = {};
-  for (const name of ['desktop-today.png', 'desktop-heart.png', 'desktop-coach.png', 'mobile-today.png']) {
+  for (const name of ['desktop-today.png', 'desktop-heart.png', 'desktop-coach.png']) {
     const buf = fs.readFileSync(path.join(outDir, name));
     const w = buf.readUInt32BE(16);
     const h = buf.readUInt32BE(20);
@@ -181,10 +160,6 @@ async function waitReady(page, { minCanvas = 1, noIntraday = false } = {}) {
     console.error('DESKTOP SIZE MISMATCH (want 2880x2000)', d);
     process.exit(2);
   }
-  if (sizes['mobile-today.png'] !== '780x1688') {
-    console.error('MOBILE SIZE MISMATCH (want 780x1688)', sizes['mobile-today.png']);
-    process.exit(2);
-  }
   if (errors.length) console.log('ERRORS:\n' + errors.join('\n'));
-  else console.log('ok', { priorName, desktop: d[0], mobile: sizes['mobile-today.png'] });
+  else console.log('ok', { priorName, desktop: d[0] });
 })().catch((e) => { console.error(e); process.exit(1); });
