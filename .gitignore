@@ -1,0 +1,26 @@
+# Dependencies & build
+node_modules/
+dist/
+*.apk
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore/
+android/*.jks
+android/**/signing.properties
+*.jks
+*.keystore
+
+# Secrets & local runtime data (never commit)
+.env
+data/
+screenshots/
+
+# Local backups / scratch (not part of the published app)
+public-*-backup/
+public-v1-backup/
+design-skills/
+archive/
+.DS_Store
+*.log

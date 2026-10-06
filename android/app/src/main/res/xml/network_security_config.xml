@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Personal Tailscale / LAN sync: cleartext HTTP is allowed because Tailscale already encrypts
+     that hop with WireGuard. Prefer https:// if you ever expose the dashboard beyond your tailnet. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

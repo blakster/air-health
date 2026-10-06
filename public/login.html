@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Air Health · Unlock</title>
+<meta name="theme-color" content="#12140f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,460;7..72,620&family=Schibsted+Grotesk:wght@430;560;680&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<style>body{display:grid;place-items:center;min-height:100dvh;padding:20px}.box{width:min(380px,100%);padding:28px 26px 22px;border-radius:var(--r-hero);box-shadow:var(--shadow-hero)}
+.box h1{font:460 1.6rem/1.15 var(--serif);margin:18px 0 6px;letter-spacing:-.03em}.box p{margin:0 0 18px;color:var(--text-2)}
+.box input{width:100%;margin:6px 0 14px;letter-spacing:.08em}.box .btn{width:100%;min-height:44px}#e{min-height:1.5em;margin:12px 0 0;color:var(--neg);font-size:.875rem}</style></head>
+<body><form class="card box" id="f"><span class="brand" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 12.5c1.4-2.6 3-2.6 4.5 0s3.1 2.6 4.5 0" stroke-linecap="round"/></svg>Air Health</span>
+<h1>Welcome back</h1><p>This dashboard is private. Enter your passcode to unlock it.</p>
+<label for="p">Passcode</label><input id="p" type="password" autocomplete="current-password" autofocus>
+<button class="btn">Unlock</button><p id="e" role="alert"></p></form>
+<script>document.getElementById('f').onsubmit=async e=>{e.preventDefault();const r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({passcode:document.getElementById('p').value})});if(r.ok)location.href='/';else document.getElementById('e').textContent=(await r.json()).error||'Unable to unlock. Try again.'}</script></body></html>
