@@ -33,6 +33,8 @@ Passcode is written to `data/.passcode` on first run (or set `APP_PASSCODE` in `
 
 Stack: Node 22 + Express, vanilla JS + Chart.js — no frontend build step. JSON store: `data/store.json`.
 
+**Theme:** Light / Dark / System in the header (default **System** = `prefers-color-scheme`). Choice is stored in `localStorage`.
+
 ## Data sources
 
 ### 1. Google Takeout
@@ -98,6 +100,12 @@ DISPLAY_NAME=Alex   # greeting + coach tone; default "there"
 | Today | Heart | Coach |
 |-------|-------|-------|
 | ![](docs/screenshots/desktop-today.png) | ![](docs/screenshots/desktop-heart.png) | ![](docs/screenshots/desktop-coach.png) |
+
+Light theme (sample):
+
+| Today | Heart |
+|-------|-------|
+| ![](docs/screenshots/desktop-today-light.png) | ![](docs/screenshots/desktop-heart-light.png) |
 
 ## Tests
 

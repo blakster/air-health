@@ -4,6 +4,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,460;7..72,620&family=Schibsted+Grotesk:wght@430;560;680&display=swap" rel="stylesheet">
+<script>(function(){var k='air-theme',v=localStorage.getItem(k),p=(v==='light'||v==='dark')?v:null,t=p||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='light'?'#f3efe4':'#12140f';})();</script>
 <link rel="stylesheet" href="/styles.css"><script src="/vendor/chart.umd.min.js"></script></head>
 <body><div class="app">
 <header class="top">
@@ -17,7 +18,13 @@
     <a class="tab" href="#/coach" data-r="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-3 2.5z"/></svg>Coach</a>
     <a class="tab" href="#/data" data-r="data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/></svg>Data</a>
   </nav>
-  <div class="navfoot"><div id="srcpill"></div><button type="button" class="linkish" id="logout">Lock</button></div>
+  <div class="navfoot"><div id="srcpill"></div>
+  <div class="theme-ctl" id="themeCtl" role="radiogroup" aria-label="Theme">
+    <button type="button" role="radio" data-theme-pref="light" aria-checked="false" title="Light">Light</button>
+    <button type="button" role="radio" data-theme-pref="dark" aria-checked="false" title="Dark">Dark</button>
+    <button type="button" role="radio" data-theme-pref="system" aria-checked="true" title="Match system">System</button>
+  </div>
+  <button type="button" class="linkish" id="logout">Lock</button></div>
 </header>
 <main id="view" tabindex="-1"><div class="empty">Loading…</div></main>
 </div><script src="/vendor/marked.min.js"></script><script src="/vendor/purify.min.js"></script><script src="/hc.js"></script><script src="/app.js"></script></body></html>

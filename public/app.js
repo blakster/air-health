@@ -10,7 +10,7 @@ const chat = JSON.parse(sessionStorage.getItem('chat') || '[]');
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const C = () => ({ sleep: css('--sleep'), sleepLight: css('--sleep-light'), rem: css('--rem'), wake: css('--wake'), heart: css('--heart'), hrv: css('--hrv'), steps: css('--steps'), recov: css('--recov'), goal: css('--goal'), ink: css('--paper'), ground: css('--ink'), ink2: css('--ink-2'), ink3: css('--ink-3'), rule: css('--rule'), sheet: css('--sheet'), tipBg: css('--tip-bg'), tipInk: css('--tip-ink'), pos: css('--pos'), neg: css('--neg') });
+const C = () => ({ sleep: css('--sleep'), sleepLight: css('--sleep-light'), rem: css('--rem'), wake: css('--wake'), heart: css('--heart'), hrv: css('--hrv'), steps: css('--steps'), recov: css('--recov'), goal: css('--goal'), ink: css('--text'), ground: css('--sheet'), ink2: css('--ink-2'), ink3: css('--ink-3'), rule: css('--rule'), sheet: css('--sheet'), tipBg: css('--tip-bg'), tipInk: css('--tip-ink'), pos: css('--pos'), neg: css('--neg') });
 const alpha = (hex, a) => { const h = hex.replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map((x) => x + x).join('') : h, 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 const NF = {}; const nf = (d) => (NF[d] ||= new Intl.NumberFormat('en-IN', { maximumFractionDigits: d, minimumFractionDigits: 0 }));
 const fmt = (v, d = 0) => (v == null || Number.isNaN(v) ? '—' : nf(d).format(v));
@@ -1028,6 +1028,50 @@ async function uploadFiles(list) {
   xhr.send(fd);
 }
 
+
+// ---------------- theme (Light / Dark / System) ----------------
+const THEME_KEY = 'air-theme';
+function themePref() {
+  const v = localStorage.getItem(THEME_KEY);
+  return (v === 'light' || v === 'dark' || v === 'system') ? v : 'system';
+}
+function resolveTheme(pref = themePref()) {
+  if (pref === 'light' || pref === 'dark') return pref;
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(pref = themePref()) {
+  const resolved = resolveTheme(pref);
+  document.documentElement.setAttribute('data-theme', resolved);
+  document.documentElement.style.colorScheme = resolved;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = css('--theme-meta') || (resolved === 'light' ? '#f3efe4' : '#12140f');
+  const ctl = document.getElementById('themeCtl');
+  if (ctl) {
+    ctl.querySelectorAll('[data-theme-pref]').forEach((b) => {
+      const on = b.dataset.themePref === pref;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+  return resolved;
+}
+function setThemePref(pref) {
+  if (pref !== 'light' && pref !== 'dark' && pref !== 'system') pref = 'system';
+  if (pref === 'system') localStorage.removeItem(THEME_KEY);
+  else localStorage.setItem(THEME_KEY, pref);
+  applyTheme(pref);
+  chartDefaultsSet = false;
+  if (D) render({ keepScroll: true });
+}
+applyTheme();
+const themeCtl = document.getElementById('themeCtl');
+if (themeCtl) {
+  themeCtl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-theme-pref]');
+    if (!b) return;
+    setThemePref(b.dataset.themePref);
+  });
+}
+
 // ---------------- router ----------------
 const PAGES = { today: pageToday, overview: pageOverview, sleep: pageSleep, activity: pageActivity, heart: pageHeart, coach: pageCoach, data: pageData };
 function render(opts = {}) {
@@ -1044,7 +1088,12 @@ function render(opts = {}) {
   animMode = 'page';
 }
 window.addEventListener('hashchange', () => render());
-// re-theme charts when the OS switches light/dark
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { chartDefaultsSet = false; render({ keepScroll: true }); });
+// re-theme charts when OS scheme changes and preference is System
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (themePref() !== 'system') return;
+  applyTheme('system');
+  chartDefaultsSet = false;
+  if (D) render({ keepScroll: true });
+});
 $('#logout').onclick = async (e) => { e.preventDefault(); await api('/api/logout', { method: 'POST' }); location.href = '/login'; };
 load().then(() => render()).catch((e) => { if (e.message !== 'auth') view.innerHTML = `<div class="card empty">Unable to load the dashboard: ${esc(e.message)}. Reload to try again.</div>`; });
