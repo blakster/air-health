@@ -1,64 +1,105 @@
 # Air Health
 
-Personal, local-first dashboard for **Fitbit Air / Google Health** data: sleep & recovery, steps & activity, heart rate & HRV, plus an optional AI coach.
+**Local-first** dashboard for Fitbit Air / Google Health: sleep & recovery, steps & activity, heart rate (including through-the-day HR), plus an optional AI coach.
 
-Health data stays on **your machine**. There is no cloud backend for metrics — only optional Coach calls you configure (SuperGrok or an API key).
+Your metrics stay on **the machine you run**. There is no Air Health cloud for health data — only optional Coach calls you configure yourself (SuperGrok or an API key).
 
-## Features
+![Overview (sample data)](docs/screenshots/desktop-overview.png)
 
-- **Today / Sleep / Heart / Activity** views with charts (vanilla JS + Chart.js)
-- **Google Takeout** import (Fitbit / Google Health zip or extracted folder)
-- **Phone sync** via an Android companion app that reads **Health Connect** and pushes day-level (+ optional intraday HR) summaries to this dashboard over your private network (typically **Tailscale**)
-- **AI Coach** — SuperGrok device-code login, or XAI / OpenAI / Anthropic / Gemini API keys
-- Single-user passcode gate; secrets and stores live under `data/` (gitignored)
+## Why self-host
+
+- **Privacy** — store, passcode, OAuth tokens, and exports live under `data/` (gitignored)
+- **Your network** — phone sync talks only to the dashboard URL you set (usually Tailscale)
+- **No account required** for the dashboard itself — one passcode on first run
+
+> Screenshots below use **sample** numbers, not anyone’s real health export.
+
+<p align="center">
+  <img src="docs/screenshots/desktop-sleep.png" width="48%" alt="Sleep (sample)" />
+  <img src="docs/screenshots/desktop-heart.png" width="48%" alt="Heart (sample)" />
+</p>
 
 ## Quick start
 
 ```bash
+git clone https://github.com/blakster/air-health.git
+cd air-health
 cp .env.example .env   # optional
 npm install
-./start.sh             # background on port 4870 (override with PORT=…)
-open http://localhost:4870
+./start.sh             # http://localhost:4870  (override with PORT=…)
 ```
 
-Passcode is printed to `data/.passcode` on first run (or set `APP_PASSCODE` in `.env`).
+Passcode is written to `data/.passcode` on first run (or set `APP_PASSCODE` in `.env`).
 
-Stack: Node 22 + Express, no frontend build step. JSON store: `data/store.json`.
+Stack: Node 22 + Express, vanilla JS + Chart.js — no frontend build step. JSON store: `data/store.json`.
 
 ## Data sources
 
-### Google Takeout
+### 1. Google Takeout
 
 1. Export Fitbit / Google Health from [Google Takeout](https://takeout.google.com/)
-2. On the **Data** page, upload the zip(s), an extracted folder, or loose JSON/CSV
-3. Parser: `lib/parser.js` (+ `lib/sources/takeout.js`)
+2. Open **Data** in the dashboard → upload the zip(s), an extracted folder, or loose JSON/CSV
+3. Until you import, the UI shows clearly labelled **sample data** (~60 days)
 
-Until you import, the app ships with clearly labelled **sample data** (~60 days).
+### 2. Phone sync (Health Connect)
 
-### Phone sync (Health Connect)
+Use the companion app **Air Health Sync** so your phone can push Health Connect summaries to this dashboard.
 
-1. Build or install the APK from `android/` (see `android/README.md`)
-2. Run the dashboard so your phone can reach it (Tailscale is the usual path: `tailscale ip -4` on the host)
-3. Set `PUBLIC_SYNC_URL` / `TAILSCALE_URL` in `.env` if you open the UI via localhost but pair from the phone
+1. Install the release APK from [Releases](https://github.com/blakster/air-health/releases) (or build from `android/` — see [android/README.md](android/README.md))
+2. Put the phone and the dashboard host on the same private network — **Tailscale is the usual path** (`tailscale ip -4` on the host)
+3. In `.env`, set the URL the phone should use when the browser is on localhost:
+
+   ```bash
+   PUBLIC_SYNC_URL=http://YOUR_TAILSCALE_IP:4870
+   # or
+   TAILSCALE_URL=http://YOUR_TAILSCALE_IP:4870
+   ```
+
 4. **Data → Phone sync → Pair phone** — scan the QR or enter the one-time code
-5. The phone stores a device token (Android Keystore); the server stores only a hash
+5. In the Android app, set **Server URL** to `http://YOUR_TAILSCALE_IP:4870` (placeholder in the APK is exactly that string)
 
-Default Android server placeholder is `http://YOUR_TAILSCALE_IP:4870` — replace with your real Tailscale IPv4 in the app UI (or rebuild with `DEFAULT_SERVER` in `android/app/build.gradle.kts`).
+Cleartext HTTP is allowed for Tailscale/LAN sync; WireGuard already encrypts the tailnet. The phone stores a device token in Android Keystore; the server keeps only a hash.
+
+### Sideload the APK
+
+1. Download `AirHealthSync-1.1.0.apk` from the [latest release](https://github.com/blakster/air-health/releases/latest)
+2. On Android: allow install from your browser/files app → open the APK
+3. Grant Health Connect permissions when prompted
+4. Open the app → set server URL → pair from the dashboard
+
+Background sync runs about every 15 minutes while the phone can reach the server (Tailscale connected). Health Connect keeps collecting on-device when Tailscale is off; the next successful session catches the dashboard up.
 
 ## Coach
 
 On the **Coach** page:
 
-1. **Connect SuperGrok** — device-code login (tokens in `data/.coach-oauth.json`)
-2. **API key** — saved to `data/.coach-secrets.json`, or set keys in `.env`
+1. **Connect SuperGrok** — device-code login (tokens in `data/.coach-oauth.json`), or
+2. **API key** — XAI / OpenAI / Anthropic / Gemini (saved under `data/.coach-secrets.json`, or set keys in `.env`)
 
-Keys and OAuth tokens never go to the browser. Coach receives a compact snapshot of your loaded metrics (not the raw Takeout zip). Wellness guidance only — not medical advice.
+Keys never go to the browser. Coach receives a compact snapshot of loaded metrics (not the raw Takeout zip). Wellness guidance only — **not medical advice**.
+
+Optional personalization:
+
+```bash
+DISPLAY_NAME=Alex   # greeting + coach tone; default "there"
+```
 
 ## Privacy
 
-- Metrics and exports live in `data/` on the machine running the server — **not** committed to git
-- Phone sync talks only to the dashboard URL you configure; no analytics SDK in the Android app
-- Optional Coach providers receive only the prompt context the app builds; see in-app “What the coach sees”
+| What | Where |
+|------|--------|
+| Metrics, imports, passcode | `data/` on your machine — **not** in git |
+| Phone ↔ dashboard | Only the URL you configure |
+| Coach providers | Only the prompt context the app builds (see in-app “What the coach sees”) |
+| Android companion | No analytics SDK |
+
+## Screenshots
+
+| Overview | Activity | Data |
+|----------|----------|------|
+| ![](docs/screenshots/desktop-overview.png) | ![](docs/screenshots/desktop-activity.png) | ![](docs/screenshots/desktop-data.png) |
+
+Mobile: ![Mobile overview (sample)](docs/screenshots/mobile-overview.png)
 
 ## Tests
 
@@ -71,7 +112,7 @@ node scripts/test_hc_ingest.js
 
 ## Android companion
 
-See [`android/README.md`](android/README.md). Release signing keystores and passwords are **not** in this repo (`android/keystore/` is gitignored); run `android/make-keystore.sh` locally once.
+See [`android/README.md`](android/README.md). Release signing keystores and passwords are **not** in this repo (`android/keystore/` is gitignored); run `android/make-keystore.sh` once on your machine if you build releases yourself.
 
 ## License
 

@@ -1,14 +1,14 @@
 {
-  "name": "fitbit-air-app",
-  "version": "1.0.0",
-  "description": "",
+  "name": "air-health",
+  "version": "1.1.0",
+  "description": "Local-first Fitbit Air / Google Health dashboard with optional AI coach",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "chart.js": "^4.5.1",
     "express": "^5.2.1",

@@ -15,7 +15,7 @@ android/**/signing.properties
 # Secrets & local runtime data (never commit)
 .env
 data/
-screenshots/
+/screenshots/
 
 # Local backups / scratch (not part of the published app)
 public-*-backup/

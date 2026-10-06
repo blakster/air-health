@@ -330,7 +330,7 @@ function pageOverview() {
   const recLabel = rec ? (rec.recovery_src === 'readiness' ? 'Daily Readiness' : 'Recovery (estimate)') : 'Recovery';
   const c = C();
   view.innerHTML = `${banner()}
-  <header class="page"><div><p class="dateline">Latest data ${dFull(D.range[1])}</p><h1>Good ${greet()}, Vansh</h1></div>${rangeSeg()}</header>
+  <header class="page"><div><p class="dateline">Latest data ${dFull(D.range[1])}</p><h1>Good ${greet()}${D.settings.displayName && D.settings.displayName !== "there" ? `, ${esc(D.settings.displayName)}` : ""}</h1></div>${rangeSeg()}</header>
   <section class="report-sheet" aria-label="Last night">
     <p class="lede">${lede(ls, rec, s)}</p>
     <div class="readouts">
@@ -746,7 +746,7 @@ function pageCoach() {
   const paintChat = () => {
     if (!box) return;
     if (!cs.configured && !chat.length) { box.innerHTML = ''; return; }
-    const welcome = chat.length ? '' : `<div class="msg assistant md">${mdHtml(`Hi Vansh. I can see ${D.isSample ? '**sample** data, not yours yet,' : 'your data'} from ${dShort(D.range[0])} to ${dShort(D.range[1])}. Ask me about trends, recovery or habits.`)}</div>`;
+    const welcome = chat.length ? '' : `<div class="msg assistant md">${mdHtml(`Hi${D.settings.displayName && D.settings.displayName !== "there" ? " " + D.settings.displayName : ""}. I can see ${D.isSample ? '**sample** data, not yours yet,' : 'your data'} from ${dShort(D.range[0])} to ${dShort(D.range[1])}. Ask me about trends, recovery or habits.`)}</div>`;
     box.innerHTML = welcome + chat.map((m) => {
       if (m.role === 'assistant') return `<div class="msg assistant md">${mdHtml(m.content)}</div>`;
       return `<div class="msg ${m.role}">${esc(m.content)}</div>`;
@@ -978,7 +978,8 @@ function pageData() {
       <p class="note">Recognised: Google Health Takeout (Physical Activity and Health Fitness Data folders: steps, distance, calories, active and zone minutes, heart rate, resting heart rate, wrist temperature, weight, sleep and stages), Global Export Data JSON (reconciled steps, distance, calories, activity minutes, VO2 max), and the legacy Fitbit HRV, SpO2, breathing rate, readiness, stress and sleep score files. Phone, Health Connect and band copies of the same minutes are not double counted.</p>
     </div>
     <div class="card"><h3>Goals</h3>
-      <form id="setForm" class="row" style="align-items:flex-end"><label>Daily step goal<br><input name="stepGoal" type="number" inputmode="numeric" min="1000" step="500" value="${D.settings.stepGoal}" style="width:150px;margin-top:6px"></label>
+      <form id="setForm" class="row" style="align-items:flex-end"><label>Display name<br><input name="displayName" type="text" maxlength="40" value="${esc(D.settings.displayName || '')}" placeholder="Optional" style="width:150px;margin-top:6px"></label>
+      <label>Daily step goal<br><input name="stepGoal" type="number" inputmode="numeric" min="1000" step="500" value="${D.settings.stepGoal}" style="width:150px;margin-top:6px"></label>
       <label>Sleep goal (hours)<br><input name="sleepH" type="number" inputmode="decimal" min="4" max="12" step="0.25" value="${D.settings.sleepGoalMinutes / 60}" style="width:130px;margin-top:6px"></label>
       <button class="btn">Save goals</button></form>
       <h4>Recent imports</h4>${st.real.imports.length ? `<div class="tablewrap"><table><tbody>${st.real.imports.slice().reverse().map((i) => `<tr><td>${new Date(i.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</td><td class="num">${i.source === 'health-connect' ? `Phone sync, ${i.days} days` : `${i.days} days, ${i.files} file${i.files === 1 ? '' : 's'}`}</td></tr>`).join('')}</tbody></table></div>` : '<p class="calm">None yet.</p>'}
@@ -992,7 +993,7 @@ function pageData() {
   $('#dirIn').onchange = (e) => uploadFiles([...e.target.files].map((f) => ({ file: f, path: f.webkitRelativePath || f.name })));
   const t = $('#toggleSrc'); if (t) t.onclick = async () => { await api('/api/source', { method: 'POST', body: JSON.stringify({ active: D.isSample ? 'real' : 'sample' }) }); await load(); render(); };
   const cr = $('#clearReal'); if (cr) cr.onclick = async () => { if (!confirm('Delete all uploaded data from this app? Your Google data is not affected.')) return; await api('/api/clear-real', { method: 'POST' }); await load(); render(); };
-  $('#setForm').onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.target); await api('/api/settings', { method: 'POST', body: JSON.stringify({ stepGoal: +f.get('stepGoal'), sleepGoalMinutes: Math.round(+f.get('sleepH') * 60) }) }); await load(); render(); };
+  $('#setForm').onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.target); await api('/api/settings', { method: 'POST', body: JSON.stringify({ displayName: String(f.get('displayName') || '').trim(), stepGoal: +f.get('stepGoal'), sleepGoalMinutes: Math.round(+f.get('sleepH') * 60) }) }); await load(); render(); };
   if (window.hcCard) window.hcCard(view.querySelector('.grid.g2')); // Phone sync (Health Connect) card, public/hc.js
 }
 async function filesFromDrop(dt) {
