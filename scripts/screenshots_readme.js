@@ -33,7 +33,7 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
     const ctx = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
       deviceScaleFactor: 2,
-      colorScheme: 'light',
+      colorScheme: 'dark',
       timezoneId: 'Asia/Kolkata',
     });
     const page = await ctx.newPage();
@@ -43,6 +43,14 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
     await page.fill('#p', pass);
     await page.click('button');
     await page.waitForURL(/\/$/);
+
+    await page.evaluate(async () => {
+      await fetch('/api/source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: 'sample' }),
+      });
+    });
 
     // Ensure sample banner visible / charts painted
     await page.goto(base + '/#/today');
@@ -57,7 +65,13 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
 
     await page.goto(base + '/#/heart');
     await page.waitForSelector('header.page h1');
-    // Wait for intraday chart if present
+    // Heart is trend charts only (intraday + zones live on Today)
+    await page.waitForFunction(() => {
+      const banner = document.querySelector('.banner');
+      const canvases = [...document.querySelectorAll('canvas')].filter((c) => c.width > 0);
+      return banner && canvases.length >= 2 && !document.querySelector('#ihTitle');
+    }, { timeout: 15000 });
+    await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(outDir, 'desktop-heart.png'), fullPage: true });
     console.log('wrote desktop-heart.png');
@@ -93,7 +107,7 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
     const ctx = await browser.newContext({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 2,
-      colorScheme: 'light',
+      colorScheme: 'dark',
       timezoneId: 'Asia/Kolkata',
       isMobile: true,
       hasTouch: true,
