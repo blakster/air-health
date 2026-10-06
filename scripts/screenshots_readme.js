@@ -1,5 +1,5 @@
 'use strict';
-/** Capture README screenshots: Today, Heart, Coach (sample data, current fathom-skin UI). */
+/** Capture README screenshots: identical desktop frame (1440×1000 @2x), sample data, name Alex. */
 const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +9,8 @@ const pass = fs.readFileSync(path.join(__dirname, '..', 'data', '.passcode'), 'u
 const outDir = path.join(__dirname, '..', 'docs', 'screenshots');
 fs.mkdirSync(outDir, { recursive: true });
 
+const DESKTOP = { width: 1440, height: 1000 };
+const MOBILE = { width: 390, height: 844 };
 const SAMPLE_COACH = `## Sleep check
 
 Your **resting HR** is steady on the sample set.
@@ -24,14 +26,72 @@ resting HR: 60
 
 Ask about recovery, steps, or heart-rate patterns anytime.`;
 
-(async () => {
-  const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
-  const errors = [];
+async function login(page) {
+  await page.goto(base + '/login');
+  await page.fill('#p', pass);
+  await page.click('button');
+  await page.waitForURL(/\/$/);
+}
 
-  // Desktop captures
+async function prepSampleAlex(page) {
+  await page.evaluate(async () => {
+    await fetch('/api/source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: 'sample' }),
+    });
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Alex' }),
+    });
+  });
+}
+
+async function restoreReal(page, name) {
+  await page.evaluate(async (displayName) => {
+    await fetch('/api/source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: 'real' }),
+    });
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName }),
+    });
+  }, name);
+}
+
+/** Hard navigation so /api/dashboard reloads with sample + Alex. */
+async function openHash(page, hash) {
+  await page.goto(base + '/?shot=' + Date.now() + hash, { waitUntil: 'networkidle' });
+  await page.waitForSelector('header.page h1');
+}
+
+async function waitReady(page, { minCanvas = 1, noIntraday = false } = {}) {
+  await page.waitForFunction(({ minCanvas, noIntraday }) => {
+    const banner = document.querySelector('.banner');
+    const canvases = [...document.querySelectorAll('canvas')].filter((c) => c.width > 0);
+    if (!banner || canvases.length < minCanvas) return false;
+    if (noIntraday && document.querySelector('#ihTitle')) return false;
+    return true;
+  }, { minCanvas, noIntraday }, { timeout: 20000 });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(700);
+}
+
+(async () => {
+  const browser = await chromium.launch({
+    executablePath: '/usr/bin/google-chrome',
+    args: ['--no-sandbox', '--disable-dev-shm-usage'],
+  });
+  const errors = [];
+  let priorName = 'Vansh';
+
   {
     const ctx = await browser.newContext({
-      viewport: { width: 1440, height: 1000 },
+      viewport: DESKTOP,
       deviceScaleFactor: 2,
       colorScheme: 'dark',
       timezoneId: 'Asia/Kolkata',
@@ -39,54 +99,34 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push('desktop: ' + e.message));
 
-    await page.goto(base + '/login');
-    await page.fill('#p', pass);
-    await page.click('button');
-    await page.waitForURL(/\/$/);
-
-    await page.evaluate(async () => {
-      await fetch('/api/source', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: 'sample' }),
-      });
+    await login(page);
+    const st = await page.evaluate(async () => {
+      const j = await (await fetch('/api/status')).json();
+      return (j.settings && j.settings.displayName) || 'Vansh';
     });
+    priorName = st;
 
-    // Ensure sample banner visible / charts painted
-    await page.goto(base + '/#/today');
-    await page.waitForSelector('header.page h1');
-    await page.waitForTimeout(1200);
-    // Sample banner should be present
-    const sample = await page.locator('.banner, .srcline').count();
-    console.log('sample markers', sample);
+    await prepSampleAlex(page);
 
-    await page.screenshot({ path: path.join(outDir, 'desktop-today.png'), fullPage: true });
+    await openHash(page, '#/today');
+    await waitReady(page, { minCanvas: 1 });
+    console.log('today h1:', await page.locator('header.page h1').innerText());
+    await page.screenshot({ path: path.join(outDir, 'desktop-today.png'), fullPage: false });
     console.log('wrote desktop-today.png');
 
-    await page.goto(base + '/#/heart');
-    await page.waitForSelector('header.page h1');
-    // Heart is trend charts only (intraday + zones live on Today)
-    await page.waitForFunction(() => {
-      const banner = document.querySelector('.banner');
-      const canvases = [...document.querySelectorAll('canvas')].filter((c) => c.width > 0);
-      return banner && canvases.length >= 2 && !document.querySelector('#ihTitle');
-    }, { timeout: 15000 });
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: path.join(outDir, 'desktop-heart.png'), fullPage: true });
+    await openHash(page, '#/heart');
+    await waitReady(page, { minCanvas: 2, noIntraday: true });
+    console.log('heart h1:', await page.locator('header.page h1').innerText());
+    await page.screenshot({ path: path.join(outDir, 'desktop-heart.png'), fullPage: false });
     console.log('wrote desktop-heart.png');
 
-    // Coach with injected sample conversation (full-bleed layout)
     await page.evaluate((sample) => {
       sessionStorage.setItem('chat', JSON.stringify([
         { role: 'user', content: 'How has my sleep been this week?' },
         { role: 'assistant', content: sample },
       ]));
     }, SAMPLE_COACH);
-    await page.goto(base + '/?t=' + Date.now() + '#/coach', { waitUntil: 'networkidle' });
-    await page.waitForSelector('header.page h1');
-    await page.waitForTimeout(800);
-    // Prefer chat view if setup is showing
+    await openHash(page, '#/coach');
     await page.evaluate(() => {
       const setup = document.getElementById('coachSetup');
       const chat = document.getElementById('coachChat');
@@ -95,17 +135,20 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
         chat.hidden = false;
       }
     });
-    await page.waitForTimeout(400);
+    await page.waitForSelector('.banner', { timeout: 10000 });
+    await page.waitForSelector('#coachChat:not([hidden]), .msg.assistant', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    console.log('coach h1:', await page.locator('header.page h1').innerText());
     await page.screenshot({ path: path.join(outDir, 'desktop-coach.png'), fullPage: false });
     console.log('wrote desktop-coach.png');
 
+    await restoreReal(page, priorName);
     await ctx.close();
   }
 
-  // Mobile Today (for README mobile slot)
   {
     const ctx = await browser.newContext({
-      viewport: { width: 390, height: 844 },
+      viewport: MOBILE,
       deviceScaleFactor: 2,
       colorScheme: 'dark',
       timezoneId: 'Asia/Kolkata',
@@ -113,19 +156,35 @@ Ask about recovery, steps, or heart-rate patterns anytime.`;
       hasTouch: true,
     });
     const page = await ctx.newPage();
-    await page.goto(base + '/login');
-    await page.fill('#p', pass);
-    await page.click('button');
-    await page.waitForURL(/\/$/);
-    await page.goto(base + '/#/today');
-    await page.waitForSelector('header.page h1');
-    await page.waitForTimeout(1000);
+    await login(page);
+    await prepSampleAlex(page);
+    await openHash(page, '#/today');
+    await waitReady(page, { minCanvas: 1 });
     await page.screenshot({ path: path.join(outDir, 'mobile-today.png'), fullPage: false });
     console.log('wrote mobile-today.png');
+    await restoreReal(page, priorName);
     await ctx.close();
   }
 
   await browser.close();
+
+  const sizes = {};
+  for (const name of ['desktop-today.png', 'desktop-heart.png', 'desktop-coach.png', 'mobile-today.png']) {
+    const buf = fs.readFileSync(path.join(outDir, name));
+    const w = buf.readUInt32BE(16);
+    const h = buf.readUInt32BE(20);
+    sizes[name] = `${w}x${h}`;
+    console.log('size', name, w, h);
+  }
+  const d = [sizes['desktop-today.png'], sizes['desktop-heart.png'], sizes['desktop-coach.png']];
+  if (!(d[0] === d[1] && d[1] === d[2] && d[0] === '2880x2000')) {
+    console.error('DESKTOP SIZE MISMATCH (want 2880x2000)', d);
+    process.exit(2);
+  }
+  if (sizes['mobile-today.png'] !== '780x1688') {
+    console.error('MOBILE SIZE MISMATCH (want 780x1688)', sizes['mobile-today.png']);
+    process.exit(2);
+  }
   if (errors.length) console.log('ERRORS:\n' + errors.join('\n'));
-  else console.log('ok');
+  else console.log('ok', { priorName, desktop: d[0], mobile: sizes['mobile-today.png'] });
 })().catch((e) => { console.error(e); process.exit(1); });
