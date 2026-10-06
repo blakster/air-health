@@ -4,7 +4,7 @@
 
 Your metrics stay on **the machine you run**. There is no Air Health cloud for health data — only optional Coach calls you configure yourself (SuperGrok or an API key).
 
-![Overview (sample data)](docs/screenshots/desktop-overview.png)
+![Today (sample data)](docs/screenshots/desktop-today.png)
 
 ## Why self-host
 
@@ -15,8 +15,8 @@ Your metrics stay on **the machine you run**. There is no Air Health cloud for h
 > Screenshots below use **sample** numbers, not anyone’s real health export.
 
 <p align="center">
-  <img src="docs/screenshots/desktop-sleep.png" width="48%" alt="Sleep (sample)" />
   <img src="docs/screenshots/desktop-heart.png" width="48%" alt="Heart (sample)" />
+  <img src="docs/screenshots/desktop-coach.png" width="48%" alt="Coach (sample)" />
 </p>
 
 ## Quick start
@@ -95,11 +95,11 @@ DISPLAY_NAME=Alex   # greeting + coach tone; default "there"
 
 ## Screenshots
 
-| Overview | Activity | Data |
-|----------|----------|------|
-| ![](docs/screenshots/desktop-overview.png) | ![](docs/screenshots/desktop-activity.png) | ![](docs/screenshots/desktop-data.png) |
+| Today | Heart | Coach |
+|-------|-------|-------|
+| ![](docs/screenshots/desktop-today.png) | ![](docs/screenshots/desktop-heart.png) | ![](docs/screenshots/desktop-coach.png) |
 
-Mobile: ![Mobile overview (sample)](docs/screenshots/mobile-overview.png)
+Mobile: ![Mobile Today (sample)](docs/screenshots/mobile-today.png)
 
 ## Tests
 
