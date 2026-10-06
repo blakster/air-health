@@ -33,7 +33,7 @@ Passcode is written to `data/.passcode` on first run (or set `APP_PASSCODE` in `
 
 Stack: Node 22 + Express, vanilla JS + Chart.js — no frontend build step. JSON store: `data/store.json`.
 
-**Theme:** Light / Dark / System in the header (default **System** = `prefers-color-scheme`). Choice is stored in `localStorage`.
+**Theme:** sun / moon / system icons in the header (default **System** = `prefers-color-scheme`). Choice is stored in `localStorage`.
 
 ## Data sources
 

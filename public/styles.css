@@ -511,15 +511,18 @@ main:has(.coach-page){display:flex;flex-direction:column;padding-bottom:0}
   background:transparent;box-shadow:inset 0 0 0 1px var(--line);gap:0;
 }
 .theme-ctl button{
-  all:unset;cursor:pointer;min-height:28px;padding:0 9px;border-radius:999px;
-  font:560 .75rem/1 var(--sans);color:var(--text-2);text-align:center;white-space:nowrap;
+  all:unset;cursor:pointer;box-sizing:border-box;width:30px;height:28px;padding:0;
+  display:grid;place-items:center;border-radius:999px;color:var(--text-2);
   transition:color 120ms ease,background-color 120ms ease,scale 150ms var(--ease-out);
 }
+.theme-ctl button svg{width:15px;height:15px;display:block}
 .theme-ctl button[aria-checked="true"]{color:var(--ink);background:var(--paper)}
 .theme-ctl button:focus-visible{outline:2px solid var(--chartreuse);outline-offset:2px}
+.theme-ctl button:active{scale:.94}
 @media (hover:hover){.theme-ctl button:not([aria-checked="true"]):hover{color:var(--text)}}
 @media (max-width:860px){
-  .theme-ctl button{padding:0 7px;font-size:.6875rem;min-height:26px}
+  .theme-ctl button{width:28px;height:26px}
+  .theme-ctl button svg{width:14px;height:14px}
 }
 
 /* Light theme: invert contrast pills (ink fill on paper) */
