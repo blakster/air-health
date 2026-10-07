@@ -484,6 +484,48 @@ main:has(.coach-page){display:flex;flex-direction:column;padding-bottom:0}
   .st-cum{height:72px}
 }
 
+
+/* ---- Today scrub readouts (sleep hypnogram + steps; matches ih-readout quiet style) ---- */
+.scrub-host{position:relative;touch-action:none;cursor:crosshair;-webkit-user-select:none;user-select:none}
+.scrub-readout{
+  display:flex;align-items:baseline;gap:.65rem;padding:.15rem 0 0;min-height:2.15rem;margin:.2rem 0 0;
+  font-variant-numeric:lining-nums tabular-nums;
+}
+.scrub-readout strong{
+  font:460 clamp(1.2rem,.65rem + .55vw,1.5rem)/1.05 var(--serif);letter-spacing:-.02em;
+  font-variant-numeric:lining-nums tabular-nums;color:var(--text);
+  min-width:4.5ch;
+}
+.scrub-readout strong.idle{opacity:.4}
+.scrub-readout strong.deep{color:var(--sleep)}
+.scrub-readout strong.light{color:var(--sleep-light)}
+.scrub-readout strong.rem{color:var(--rem)}
+.scrub-readout strong.wake{color:var(--wake)}
+.scrub-readout span{
+  color:var(--text-2);font-size:.875rem;min-width:14ch;
+  font-variant-numeric:lining-nums tabular-nums;
+}
+.ts-hypno-svg .scrub-guide{
+  stroke:var(--text);stroke-width:1;opacity:.4;pointer-events:none;
+}
+.ts-hypno-svg.is-scrubbing rect{opacity:.38}
+.ts-hypno-svg.is-scrubbing rect.is-active{opacity:1}
+.ts-band.is-scrubbing i{opacity:.38}
+.ts-band.is-scrubbing i.is-active{opacity:1}
+.st-plot{position:relative}
+.st-guide{
+  position:absolute;top:0;height:88px;width:1px;margin:0;padding:0;border:0;
+  background:color-mix(in oklab,var(--text) 45%,transparent);
+  transform:translateX(-50%);pointer-events:none;z-index:2;
+}
+.st-bars i.is-active{background:var(--steps)}
+.st-plot.is-scrubbing .st-bars i:not(.is-active){opacity:.55}
+@media (max-width:760px){
+  .st-guide{height:72px}
+  .scrub-readout{min-height:2rem}
+  .scrub-readout span{font-size:.8125rem}
+}
+
 /* ---- Today tab (day-scoped, open Fathom column) ---- */
 .dayhead .today-lede{margin:.85rem 0 0;font:460 clamp(1.15rem,.9rem + 1vw,1.55rem)/1.25 var(--serif);letter-spacing:-.02em;max-width:42ch;color:var(--text-2)}
 .dayhead .today-lede .n{font-weight:620;color:var(--text)}

@@ -327,11 +327,11 @@ function sleepHypnoSvg(epochs, bedClock, wakeClock, totalMin) {
     return `<text class="lane-lab" x="${padL - 6}" y="${y}" dominant-baseline="middle" text-anchor="end">${esc(l.label)}</text>`;
   }).join('');
   const grids = lanes.map((_, i) => (i < 3 ? `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${padT + (i + 1) * laneH}" y2="${padT + (i + 1) * laneH}" />` : '')).join('');
-  const rects = epochs.map((g) => {
+  const rects = epochs.map((g, ei) => {
     const i = laneIx[g.t]; if (i == null) return '';
     const x = xOf(g.s), w = Math.max(1.5, xOf(g.s + g.d) - x);
     const label = ({ deep: 'Deep', light: 'Light', rem: 'REM', wake: 'Awake' })[g.t] || g.t;
-    return `<rect class="${g.t}" x="${x.toFixed(2)}" y="${laneY(i).toFixed(2)}" width="${w.toFixed(2)}" height="${barH.toFixed(2)}" rx="1.5"><title>${esc(label)} ${hm(g.d)}</title></rect>`;
+    return `<rect class="${g.t}" data-i="${ei}" x="${x.toFixed(2)}" y="${laneY(i).toFixed(2)}" width="${w.toFixed(2)}" height="${barH.toFixed(2)}" rx="1.5"><title>${esc(label)} ${hm(g.d)}</title></rect>`;
   }).join('');
   const bedMin = bedClock != null ? Math.round(bedClock + 720) % 1440 : 0;
   const fmtAbs = (abs) => `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
@@ -345,7 +345,7 @@ function sleepHypnoSvg(epochs, bedClock, wakeClock, totalMin) {
   const step = totalMin > 400 ? 120 : totalMin > 240 ? 60 : 30;
   for (let m = step; m < totalMin - step / 2; m += step) pushTick(m, fmtAbs((bedMin + m) % 1440), false);
   pushTick(totalMin, wakeClock != null ? clock(wakeClock) : fmtAbs((bedMin + totalMin) % 1440), true);
-  return `<svg class="ts-hypno-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sleep stages from bedtime to wake" preserveAspectRatio="xMidYMid meet">${labs}${grids}${rects}${ticks.join('')}</svg>`;
+  return `<svg class="ts-hypno-svg" viewBox="0 0 ${W} ${H}" data-pad-l="${padL}" data-pad-r="${padR}" data-pad-t="${padT}" data-pad-b="${padB}" data-w="${W}" data-h="${H}" data-total="${totalMin}" data-bed="${bedClock ?? ''}" role="img" aria-label="Sleep stages from bedtime to wake — scrub to inspect" preserveAspectRatio="xMidYMid meet">${labs}${grids}${rects}${ticks.join('')}<line class="scrub-guide" x1="${padL}" x2="${padL}" y1="${padT}" y2="${H - padB}" visibility="hidden" /></svg>`;
 }
 
 /** Last-night sleep: real time-axis hypnogram (Apple Health / Fitbit stage timeline). */
@@ -389,22 +389,25 @@ function sleepStageStrip(sleep) {
   const note = epochSource === 'synth'
     ? `<p class="ts-note">Stage order estimated from totals — upload or sync epoch stages when available.</p>`
     : (epochSource === 'real' ? '' : '');
+  const idleSleep = `<strong class="idle">—</strong><span>scrub for stage · time</span>`;
   const figure = epochs && epochs.length && sleep.bed_clock != null
     ? `<figure class="ts-hypno">
-        ${sleepHypnoSvg(epochs, sleep.bed_clock, sleep.wake_clock, span)}
+        <div class="scrub-host" data-scrub="sleep-hypno">${sleepHypnoSvg(epochs, sleep.bed_clock, sleep.wake_clock, span)}</div>
+        <p class="scrub-readout" id="sleepScrub" aria-live="polite">${idleSleep}</p>
         <figcaption>${legend}</figcaption>
         ${note}
       </figure>`
     : hasStages
       ? (() => {
           // Fallback chronological strip (no bed clock): widths = duration along time, not % mix.
-          const bands = epochs.map((g) => {
+          const bands = epochs.map((g, ei) => {
             const pct = (g.d / span) * 100;
             const label = ({ deep: 'Deep', light: 'Light', rem: 'REM', wake: 'Awake' })[g.t] || g.t;
-            return `<i class="${g.t}" style="width:${pct.toFixed(2)}%" title="${esc(label)} ${hm(g.d)}"></i>`;
+            return `<i class="${g.t}" data-i="${ei}" style="width:${pct.toFixed(2)}%" title="${esc(label)} ${hm(g.d)}"></i>`;
           }).join('');
           return `<figure class="ts-stages">
-            <div class="ts-band" role="img" aria-label="Sleep stages along the night">${bands}</div>
+            <div class="scrub-host" data-scrub="sleep-band"><div class="ts-band" role="img" aria-label="Sleep stages along the night — scrub to inspect">${bands}</div></div>
+            <p class="scrub-readout" id="sleepScrub" aria-live="polite">${idleSleep}</p>
             <figcaption>${legend}</figcaption>
             ${note}
           </figure>`;
@@ -456,7 +459,7 @@ function stepsDayStrip(row, goal) {
     const bars = hourly.map((n, i) => {
       const h = Math.max(n > 0 ? 4 : 0, (n / peak) * 100);
       const on = i <= nowHour;
-      return `<i class="hr${on ? ' on' : ''}${i === nowHour ? ' now' : ''}" style="height:${h.toFixed(1)}%" title="${String(i).padStart(2, '0')}:00 · ${fmt(n)} steps"></i>`;
+      return `<i class="hr${on ? ' on' : ''}${i === nowHour ? ' now' : ''}" data-i="${i}" style="height:${h.toFixed(1)}%" title="${String(i).padStart(2, '0')}:00 · ${fmt(n)} steps"></i>`;
     }).join('');
     // Cumulative polyline in a sibling SVG overlay (0–100% height = 0–max(cum, goal))
     const maxCum = Math.max(cum[23] || 1, goal || 1);
@@ -470,9 +473,13 @@ function stepsDayStrip(row, goal) {
       : '';
     const paceX = (nowMin / 1440) * 100;
     chart = `<figure class="st-day">
-      <div class="st-bars" role="img" aria-label="Steps each hour">${bars}</div>
-      <svg class="st-cum" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${goalLine}<polyline class="cum" points="${pts}" /><line class="now-line" x1="${paceX.toFixed(2)}" x2="${paceX.toFixed(2)}" y1="0" y2="100" /></svg>
+      <div class="scrub-host st-plot" data-scrub="steps-day">
+        <div class="st-bars" role="img" aria-label="Steps each hour — scrub to inspect">${bars}</div>
+        <svg class="st-cum" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${goalLine}<polyline class="cum" points="${pts}" /><line class="now-line" x1="${paceX.toFixed(2)}" x2="${paceX.toFixed(2)}" y1="0" y2="100" /></svg>
+        <div class="st-guide" hidden aria-hidden="true"></div>
+      </div>
       <div class="st-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+      <p class="scrub-readout" id="stepsScrub" aria-live="polite"><strong class="idle">—</strong><span>scrub for hour · steps</span></p>
       <figcaption>
         <span><b class="bar"></b>Hourly</span>
         <span><b class="cum"></b>Cumulative</span>
@@ -506,6 +513,205 @@ function stepsDayStrip(row, goal) {
     </ul>
     ${chart}
   </section>`;
+}
+
+
+/** Shared pointer scrub (desktop + mobile): rAF-throttled, mouse leave clears, touch sticks. */
+function bindPointerScrub(el, { onMove, onClear }) {
+  if (!el) return;
+  let raf = 0, pending = null;
+  const schedule = (e) => {
+    pending = e;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const ev = pending; pending = null;
+      if (ev) onMove(ev);
+    });
+  };
+  const clear = () => {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    pending = null;
+    onClear();
+  };
+  el.style.touchAction = 'none';
+  el.onpointermove = schedule;
+  el.onpointerdown = (e) => { try { el.setPointerCapture(e.pointerId); } catch (_) {} onMove(e); };
+  el.onpointerleave = (e) => { if (e.pointerType === 'mouse') clear(); };
+  el.onpointercancel = clear;
+}
+const STAGE_LABEL = { deep: 'Deep', light: 'Light', rem: 'REM', wake: 'Awake' };
+function sleepIdleReadout() {
+  const el = document.getElementById('sleepScrub');
+  if (el) el.innerHTML = `<strong class="idle">—</strong><span>scrub for stage · time</span>`;
+}
+function stepsIdleReadout(steps) {
+  const el = document.getElementById('stepsScrub');
+  if (!el) return;
+  if (steps != null) el.innerHTML = `<strong>${fmt(steps)}</strong><span>steps so far</span>`;
+  else el.innerHTML = `<strong class="idle">—</strong><span>scrub for hour · steps</span>`;
+}
+function setSleepReadout(stage, clockLabel, durMin) {
+  const el = document.getElementById('sleepScrub'); if (!el) return;
+  const tone = stage && STAGE_LABEL[stage] ? stage : '';
+  el.innerHTML = `<strong class="${tone}">${esc(STAGE_LABEL[stage] || stage || '—')}</strong><span>${esc(clockLabel)}${durMin != null ? ` · ${hm(durMin)}` : ''}</span>`;
+}
+/** Map clientX into SVG user space (viewBox). */
+function svgUserX(svg, clientX) {
+  const ctm = svg.getScreenCTM(); if (!ctm) return null;
+  try {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = 0;
+    return pt.matrixTransform(ctm.inverse()).x;
+  } catch (_) {
+    const r = svg.getBoundingClientRect();
+    if (!r.width) return null;
+    const vb = (svg.viewBox && svg.viewBox.baseVal) || { width: 640 };
+    return ((clientX - r.left) / r.width) * (vb.width || 640);
+  }
+}
+function bindSleepHypnoScrub(epochs, bedClock, totalMin) {
+  const host = document.querySelector('[data-scrub="sleep-hypno"]');
+  const svg = host && host.querySelector('.ts-hypno-svg');
+  if (!host || !svg || !epochs || !epochs.length) return;
+  const padL = +(svg.dataset.padL || 48), padR = +(svg.dataset.padR || 10);
+  const W = +(svg.dataset.w || 640);
+  const plotW = W - padL - padR;
+  const guide = svg.querySelector('.scrub-guide');
+  const rects = [...svg.querySelectorAll('rect[data-i]')];
+  let active = -1;
+  const bedMin = bedClock != null ? Math.round(bedClock + 720) % 1440 : 0;
+  const absClock = (off) => {
+    const abs = (bedMin + Math.max(0, Math.min(totalMin, Math.round(off)))) % 1440;
+    return `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+  };
+  const applyX = (clientX) => {
+    const ux = svgUserX(svg, clientX); if (ux == null) return;
+    const frac = (ux - padL) / Math.max(1, plotW);
+    const m = Math.max(0, Math.min(totalMin, frac * totalMin));
+    let ei = epochs.findIndex((g) => m >= g.s && m < g.s + g.d);
+    if (ei < 0) ei = m >= totalMin ? epochs.length - 1 : 0;
+    const g = epochs[ei]; if (!g) return;
+    // Guide at cursor (clamped to plot)
+    const cx = Math.max(padL, Math.min(W - padR, ux));
+    if (guide) {
+      guide.setAttribute('x1', cx.toFixed(2));
+      guide.setAttribute('x2', cx.toFixed(2));
+      guide.setAttribute('visibility', 'visible');
+    }
+    if (ei !== active) {
+      active = ei;
+      rects.forEach((r) => r.classList.toggle('is-active', +r.dataset.i === ei));
+      svg.classList.add('is-scrubbing');
+    }
+    setSleepReadout(g.t, absClock(m), g.d);
+  };
+  const clear = () => {
+    active = -1;
+    if (guide) guide.setAttribute('visibility', 'hidden');
+    rects.forEach((r) => r.classList.remove('is-active'));
+    svg.classList.remove('is-scrubbing');
+    sleepIdleReadout();
+  };
+  bindPointerScrub(host, { onMove: (e) => applyX(e.clientX), onClear: clear });
+}
+function bindSleepBandScrub(epochs, span, bedClock) {
+  const host = document.querySelector('[data-scrub="sleep-band"]');
+  const band = host && host.querySelector('.ts-band');
+  if (!host || !band || !epochs || !epochs.length) return;
+  const segs = [...band.querySelectorAll('i[data-i]')];
+  let active = -1;
+  const bedMin = bedClock != null ? Math.round(bedClock + 720) % 1440 : null;
+  const applyX = (clientX) => {
+    const r = band.getBoundingClientRect(); if (!r.width) return;
+    const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    const m = frac * span;
+    let ei = epochs.findIndex((g) => m >= g.s && m < g.s + g.d);
+    if (ei < 0) ei = m >= span ? epochs.length - 1 : 0;
+    const g = epochs[ei]; if (!g) return;
+    if (ei !== active) {
+      active = ei;
+      segs.forEach((s) => s.classList.toggle('is-active', +s.dataset.i === ei));
+      band.classList.add('is-scrubbing');
+    }
+    const clockLabel = bedMin != null
+      ? (() => { const abs = (bedMin + Math.round(m)) % 1440; return `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`; })()
+      : hm(Math.round(m));
+    setSleepReadout(g.t, clockLabel, g.d);
+  };
+  const clear = () => {
+    active = -1;
+    segs.forEach((s) => s.classList.remove('is-active'));
+    band.classList.remove('is-scrubbing');
+    sleepIdleReadout();
+  };
+  bindPointerScrub(host, { onMove: (e) => applyX(e.clientX), onClear: clear });
+}
+function bindStepsDayScrub(hourly, cum, goal, totalSteps) {
+  const host = document.querySelector('[data-scrub="steps-day"]');
+  if (!host || !hourly || hourly.length !== 24) return;
+  const bars = [...host.querySelectorAll('.st-bars i[data-i]')];
+  const guide = host.querySelector('.st-guide');
+  let active = -1;
+  const applyX = (clientX) => {
+    const r = host.getBoundingClientRect(); if (!r.width) return;
+    const frac = Math.max(0, Math.min(0.999, (clientX - r.left) / r.width));
+    const hour = Math.min(23, Math.floor(frac * 24));
+    const n = hourly[hour] || 0;
+    const c = cum[hour] || 0;
+    if (guide) {
+      guide.hidden = false;
+      guide.style.left = `${((hour + 0.5) / 24) * 100}%`;
+    }
+    if (hour !== active) {
+      active = hour;
+      bars.forEach((b) => b.classList.toggle('is-active', +b.dataset.i === hour));
+      host.classList.add('is-scrubbing');
+    }
+    const el = document.getElementById('stepsScrub');
+    if (el) {
+      const goalBit = goal ? ` · ${Math.min(100, Math.round((c / goal) * 100))}% of goal` : '';
+      el.innerHTML = `<strong>${String(hour).padStart(2, '0')}:00</strong><span>${fmt(n)} this hour · ${fmt(c)} cumulative${goalBit}</span>`;
+    }
+  };
+  const clear = () => {
+    active = -1;
+    if (guide) guide.hidden = true;
+    bars.forEach((b) => b.classList.remove('is-active'));
+    host.classList.remove('is-scrubbing');
+    stepsIdleReadout(totalSteps);
+  };
+  stepsIdleReadout(totalSteps);
+  bindPointerScrub(host, { onMove: (e) => applyX(e.clientX), onClear: clear });
+}
+/** Wire Today sleep hypnogram + steps scrub after paint. Heart already has ihBindPointer. */
+function bindTodayScrubs(sleep, row, goal) {
+  // Sleep
+  if (sleep && sleep.sleep_minutes != null) {
+    const deep = sleep.sleep_deep, light = sleep.sleep_light, rem = sleep.sleep_rem, wake = sleep.sleep_wake;
+    const hasStages = [deep, light, rem].some((v) => v != null && v > 0);
+    if (hasStages) {
+      let epochs = null;
+      const real = sleepEpochsFor(sleep);
+      if (real) epochs = real.epochs;
+      else epochs = synthSleepEpochs(deep, light, rem, wake);
+      if (epochs && epochs.length) {
+        const tib = sleep.time_in_bed || (epochs.reduce((s, x) => s + x.d, 0)) || sleep.sleep_minutes;
+        const span = Math.max(tib, ...epochs.map((g) => g.s + g.d));
+        if (document.querySelector('[data-scrub="sleep-hypno"]')) bindSleepHypnoScrub(epochs, sleep.bed_clock, span);
+        else if (document.querySelector('[data-scrub="sleep-band"]')) bindSleepBandScrub(epochs, span, sleep.bed_clock);
+      }
+    }
+  }
+  // Steps hourly
+  const hourly = Array.isArray(row && row.steps_hourly) && row.steps_hourly.length === 24
+    ? row.steps_hourly.map((n) => Math.max(0, +n || 0))
+    : null;
+  if (hourly) {
+    const cum = []; let run = 0;
+    for (let i = 0; i < 24; i++) { run += hourly[i]; cum.push(run); }
+    bindStepsDayScrub(hourly, cum, goal, row && row.steps != null ? row.steps : cum[23]);
+  }
 }
 
 function pageToday() {
@@ -577,6 +783,7 @@ function pageToday() {
     <p class="missing">${missing.length ? missing.join(' · ') : (haveAny ? 'Every signal available for this day has a row.' : 'Wear the band today to fill sleep, heart and activity.')}</p>
   </section>`;
   initIntraday({ locked: true, date });
+  bindTodayScrubs(sleep, row, goal);
 }
 
 function pageOverview() {
