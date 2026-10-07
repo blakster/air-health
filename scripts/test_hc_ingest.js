@@ -88,6 +88,55 @@ const rec = (t, id, s, e, v, o = FB, lm = 1000, extra = {}) => ({ t, id, lm, o, 
   const r3 = hc.ingest({ kind: 'changes', records: [], deleted: ['rh1', 'unknown-id'] }); assert.strictEqual(r3.deleted, 1);
   assert.strictEqual(store.active().days['2026-10-06'].resting_hr, undefined);
 
+  // 4b. Sleep must NOT be wiped by a daytime steps-only sync (no SleepSession in the batch).
+  const sleepBefore = {
+    minutes: store.active().days['2026-10-06'].sleep_minutes,
+    deep: store.active().days['2026-10-06'].sleep_deep,
+    bedtime: store.active().days['2026-10-06'].bedtime,
+    waketime: store.active().days['2026-10-06'].waketime,
+    stages: store.active().days['2026-10-06'].sleep_stages,
+    sessions: store.active().sleep.filter((x) => x.date === '2026-10-06').map((x) => x.logId),
+  };
+  assert.strictEqual(sleepBefore.minutes, 400);
+  assert.ok(Array.isArray(sleepBefore.stages) && sleepBefore.stages.length, 'stage epochs present before steps-only sync');
+  hc.ingest({ kind: 'changes', records: [rec('Steps', 'st-day', '2026-10-06T09:00:00Z', '2026-10-06T09:01:00Z', { count: 50 })],
+    aggregates: [{ date: '2026-10-06', steps: 7050, origins: [FB] }] });
+  d6 = store.active().days['2026-10-06'];
+  assert.strictEqual(d6.sleep_minutes, sleepBefore.minutes, 'steps-only sync keeps sleep_minutes');
+  assert.strictEqual(d6.sleep_deep, sleepBefore.deep);
+  assert.strictEqual(d6.bedtime, sleepBefore.bedtime);
+  assert.strictEqual(d6.waketime, sleepBefore.waketime);
+  assert.deepStrictEqual(d6.sleep_stages, sleepBefore.stages, 'sleep_stages epochs kept');
+  assert.deepStrictEqual(store.active().sleep.filter((x) => x.date === '2026-10-06').map((x) => x.logId), sleepBefore.sessions);
+
+  // 4c. Explicit SleepSession deletion (HC change feed) also keeps last-good sleep until real sleep arrives.
+  const rDelSl = hc.ingest({ kind: 'changes', records: [], deleted: ['sl1'] });
+  assert.strictEqual(rDelSl.deleted, 1);
+  d6 = store.active().days['2026-10-06'];
+  assert.strictEqual(d6.sleep_minutes, 400, 'deleted SleepSession keeps last-good minutes');
+  assert.strictEqual(d6.bedtime, '2026-10-05T23:30');
+  assert.ok(d6.sleep_stages && d6.sleep_stages.length, 'deleted SleepSession keeps stage epochs');
+  assert.strictEqual(store.active().sleep.filter((x) => x.date === '2026-10-06' && x.logId === 'hc:sl1').length, 1);
+
+  // 4d. A short stub session (<30 min) must not replace last-good overnight sleep.
+  hc.ingest({ kind: 'changes', records: [rec('SleepSession', 'sl-stub', '2026-10-06T12:00:00Z', '2026-10-06T12:10:00Z', { title: 'nap', stages: [] })] });
+  d6 = store.active().days['2026-10-06'];
+  assert.strictEqual(d6.sleep_minutes, 400, 'stub nap does not wipe overnight sleep');
+  assert.strictEqual(d6.bedtime, '2026-10-05T23:30');
+
+  // 4e. A later real sleep session replaces last-good (drop the stub first so minutes are not summed).
+  hc.ingest({ kind: 'changes', records: [rec('SleepSession', 'sl2', '2026-10-05T18:30:00Z', '2026-10-06T01:30:00Z', { title: null, stages: [
+    [T('2026-10-05T18:30:00Z'), T('2026-10-05T20:30:00Z'), 'LIGHT'], [T('2026-10-05T20:30:00Z'), T('2026-10-05T22:00:00Z'), 'DEEP'],
+    [T('2026-10-05T22:00:00Z'), T('2026-10-05T23:30:00Z'), 'REM'], [T('2026-10-05T23:30:00Z'), T('2026-10-06T01:30:00Z'), 'LIGHT']] })],
+    deleted: ['sl-stub'] });
+  d6 = store.active().days['2026-10-06'];
+  assert.strictEqual(d6.sleep_minutes, 420);
+  assert.strictEqual(d6.bedtime, '2026-10-06T00:00'); // 18:30Z + 5:30 IST
+  assert.strictEqual(d6.waketime, '2026-10-06T07:00');
+  assert.ok(d6.sleep_stages && d6.sleep_stages.length);
+  assert.strictEqual(store.active().sleep.filter((x) => x.logId === 'hc:sl2').length, 1);
+  assert.strictEqual(store.active().sleep.filter((x) => x.logId === 'hc:sl1').length, 0, 'replaced session dropped');
+
   // 5. Day with only Google Fit + HC aggregate -> aggregate (HC's own de-duplicated total), not a sum.
   hc.ingest({ kind: 'backfill', records: [rec('Steps', 'g3', '2026-10-04T05:00:00Z', '2026-10-04T05:01:00Z', { count: 500 }, FIT), rec('Steps', 'g4', '2026-10-04T05:00:00Z', '2026-10-04T05:01:00Z', { count: 450 }, 'com.sec.android.app.shealth')],
     aggregates: [{ date: '2026-10-04', steps: 520, origins: [FIT] }] });
@@ -101,14 +150,14 @@ const rec = (t, id, s, e, v, o = FB, lm = 1000, extra = {}) => ({ t, id, lm, o, 
   intraday.save(DATA, { '2026-10-06': { ...i6, source: 'Google Fitbit Air', samples: 1 } }); // what the upload route writes first ...
   store.mergeReal({ days: {}, sleep: [] }, { source: 'takeout-upload', files: 1, days: 0 }); // ... then mergeReal restores HC intraday
   d6 = store.active().days['2026-10-06'];
-  assert.strictEqual(d6.steps, 7000); assert.strictEqual(d6.sleep_minutes, 400); assert.strictEqual(d6.azm, 33);
+  assert.strictEqual(d6.steps, 7050); assert.strictEqual(d6.sleep_minutes, 420); assert.strictEqual(d6.azm, 33);
   assert.strictEqual(store.active().sleep.filter((x) => x.date === '2026-10-06').length, 1);
   assert.strictEqual(intraday.get(DATA, '2026-10-06').source, 'Health Connect');
   assert.strictEqual(store.status().real.imports.filter((i) => i.source === 'health-connect').length, 1, 'one rolling import entry');
 
   // 7. Shows up in analytics (all pages) and the coach context.
   const a = analytics.build(store.active(), store.settings());
-  assert.strictEqual(a.rows.find((r) => r.date === '2026-10-06').steps, 7000);
+  assert.strictEqual(a.rows.find((r) => r.date === '2026-10-06').steps, 7050);
   const ctx = coach.buildContext(a, '');
   assert.ok(/PHONE SYNC: \d+ days .* Health Connect/.test(ctx), 'coach context names Health Connect');
   const s = hc.summary(); assert.ok(s.origins.find((o) => o.pkg === FB && o.preferred && o.types.HeartRate >= 1)); assert.ok(s.origins.find((o) => o.pkg === FIT && !o.preferred));
@@ -131,7 +180,7 @@ const rec = (t, id, s, e, v, o = FB, lm = 1000, extra = {}) => ({ t, id, lm, o, 
   const gz = zlib.gzipSync(JSON.stringify({ kind: 'changes', records: [rec('Steps', 'st9', '2026-10-06T08:00:00Z', '2026-10-06T08:01:00Z', { count: 100 })] }));
   assert.strictEqual((await j('/api/hc/ingest', { method: 'POST', headers: { 'content-type': 'application/gzip', authorization: 'Bearer wrong-token-wrong-token-wrong-token-xx' }, body: gz })).status, 401);
   const ing = await j('/api/hc/ingest', { method: 'POST', headers: { 'content-type': 'application/gzip', authorization: `Bearer ${token}` }, body: gz });
-  assert.strictEqual(ing.status, 200); assert.strictEqual(ing.body.accepted, 1); assert.strictEqual(store.active().days['2026-10-06'].steps, 7100);
+  assert.strictEqual(ing.status, 200); assert.strictEqual(ing.body.accepted, 1); assert.strictEqual(store.active().days['2026-10-06'].steps, 7150);
   const big = { kind: 'backfill', records: [] }; const hr2 = []; for (let i = 0; i < 60000; i++) hr2.push([T('2026-10-03T00:00:00Z') + i * 1000, 70 + (i % 30)]);
   big.records.push(rec('HeartRate', 'hrBig', '2026-10-03T00:00:00Z', '2026-10-03T20:50:00Z', { hr: hr2 }));
   const gzBig = zlib.gzipSync(JSON.stringify(big)); assert.ok(JSON.stringify(big).length > 1024 * 1024, 'bigger than the 1 MB JSON limit');
@@ -149,5 +198,5 @@ const rec = (t, id, s, e, v, o = FB, lm = 1000, extra = {}) => ({ t, id, lm, o, 
   // 9. "Delete uploaded data" removes the phone copy too.
   store.clearReal(); assert.strictEqual(fs.existsSync(path.join(DATA, 'hc', 'days')), false); assert.strictEqual(hc.summary().days, 0);
   fs.rmSync(DATA, { recursive: true, force: true });
-  console.log('OK: Health Connect ingest (dedup by origin, HC-wins merge, sleep/intraday overlay, idempotency, deletions, aggregates, HTTP auth + gzip, coach context)');
+  console.log('OK: Health Connect ingest (dedup by origin, HC-wins merge, sticky sleep, sleep/intraday overlay, idempotency, deletions, aggregates, HTTP auth + gzip, coach context)');
 })().catch((e) => { console.error(e); fs.rmSync(DATA, { recursive: true, force: true }); process.exit(1); });
