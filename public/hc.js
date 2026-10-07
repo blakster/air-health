@@ -16,7 +16,7 @@
   const TYPE = { Steps: 'steps', Distance: 'distance', TotalCaloriesBurned: 'calories', ActiveCaloriesBurned: 'active calories', HeartRate: 'heart rate', RestingHeartRate: 'resting HR', HeartRateVariabilityRmssd: 'HRV', SleepSession: 'sleep', OxygenSaturation: 'SpO₂', RespiratoryRate: 'breathing', SkinTemperature: 'skin temp', Vo2Max: 'VO₂ max', ExerciseSession: 'workouts', Weight: 'weight' };
   let timer = null;
 
-  async function post(path) { const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' } }); if (r.status === 401) { location.href = '/login'; throw new Error('auth'); } return r.json(); }
+  async function post(path, body) { const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); if (r.status === 401) { location.href = '/login'; throw new Error('auth'); } return r.json(); }
 
   function body(s) {
     const apk = s.apk ? `<a class="btn ghost" href="${e(s.apk.url)}" download>Download Android app (${mb(s.apk.size)})</a>` : '<span class="calm">The Android app has not been built yet.</span>';
@@ -31,7 +31,7 @@
       <dt>Synced days</dt><dd>${s.days ? `${s.days} (${day(s.range[0])} – ${day(s.range[1])})` : '—'}</dd><dt>Records</dt><dd>${(s.records || 0).toLocaleString('en-IN')}</dd></dl>
       ${origins}
       <p class="note">For days the phone has synced, its numbers replace the export's, metric by metric. Steps, distance and calories come from one source per day (the Google Health app first), so phone and band are never added together.</p>
-      <div class="row" style="margin-top:14px">${apk}<button type="button" class="btn ghost" id="hcResync" title="The phone sends its whole history again at its next sync">${s.resync ? 'Full resend requested' : 'Resend everything'}</button><button type="button" class="btn ghost" id="hcPair">Pair a different phone</button><button type="button" class="btn danger" id="hcUnpair">Unpair</button></div><div id="hcCode"></div>`;
+      <div class="row" style="margin-top:14px">${apk}<button type="button" class="btn" id="hcSleepResync" title="Phone re-reads SleepSession for the last 3 nights only (no full history). Needs Air Health Sync 1.1.1+.">${s.sleepResync ? `Sleep recovery requested (${s.sleepResync.days} nights)` : 'Recover last-night sleep'}</button><button type="button" class="btn ghost" id="hcResync" title="The phone sends its whole history again at its next sync">${s.resync ? 'Full resend requested' : 'Resend everything'}</button><button type="button" class="btn ghost" id="hcPair">Pair a different phone</button><button type="button" class="btn danger" id="hcUnpair">Unpair</button></div><div id="hcCode"></div>`;
   }
 
   function showCode(j) {
@@ -54,7 +54,8 @@
     if (!card || !card.isConnected) return;
     card.innerHTML = `<h3>Phone sync (Health Connect) ${s.paired ? '<span class="pill real"><i></i>Paired</span>' : '<span class="pill">Not paired</span>'}</h3>${body(s)}`;
     const p = card.querySelector('#hcPair'); if (p) p.onclick = async () => { if (s.paired && !confirm('Pair a different phone? The current phone will stop syncing.')) return; p.disabled = true; try { showCode(await post('/api/hc/pair')); } finally { p.disabled = false; } };
-    const rs = card.querySelector('#hcResync'); if (rs) rs.onclick = async () => render(await post('/api/hc/resync'));
+    const sl = card.querySelector('#hcSleepResync'); if (sl) sl.onclick = async () => { sl.disabled = true; try { render(await post('/api/hc/resync', { sleep: true, days: 3 })); } finally { sl.disabled = false; } };
+    const rs = card.querySelector('#hcResync'); if (rs) rs.onclick = async () => { if (!confirm('Resend the phone\'s whole Health Connect history? This is slow. Prefer "Recover last-night sleep" when only sleep is missing.')) return; render(await post('/api/hc/resync')); };
     const u = card.querySelector('#hcUnpair'); if (u) u.onclick = async () => { if (!confirm('Unpair this phone? It stops syncing. Data already synced stays on the dashboard.')) return; render(await post('/api/hc/unpair')); };
   }
 

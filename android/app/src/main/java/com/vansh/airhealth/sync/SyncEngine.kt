@@ -89,13 +89,40 @@ class SyncEngine(private val ctx: Context, private val onProgress: suspend (Stri
         val api = Api(state.server)
         // Reachability + pairing check first, and honour a "resync everything" request from the dashboard.
         progress("Contacting the dashboard")
-        if (api.status(token, ackResync = true).optBoolean("resync", false)) state.resetSync()
+        val st = api.status(token, ackResync = true)
+        if (st.optBoolean("resync", false)) state.resetSync()
+        // Sleep-only recovery: re-read recent SleepSession (+ overnight companions) without wiping the changes token / full history.
+        val sleepObj = st.optJSONObject("sleepResync")
+        val sleepDays = sleepObj?.optInt("days", 0) ?: 0
+        if (sleepDays > 0) {
+            api.status(token, ackSleepResync = true) // consume so we do not loop
+            sleepRecover(client, api, token, types, sleepDays.coerceIn(1, 14))
+        }
         val keySet = types.joinToString(",") { it.key }
         val history = HcTypes.HISTORY in granted && featureOn(client, HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY)
 
         if (state.changesToken == null || state.tokenTypes != keySet) backfill(client, api, token, types, keySet, history)
         changes(client, api, token, types, history, keySet)
         return SyncResult(true, sent, null)
+    }
+
+    /** Recent nights only: SleepSession + overnight vitals. Does not reset the incremental changes token. */
+    private suspend fun sleepRecover(client: HealthConnectClient, api: Api, token: String, types: List<HcType>, days: Int) {
+        val want = setOf("SleepSession", "HeartRateVariabilityRmssd", "RespiratoryRate", "OxygenSaturation", "SkinTemperature", "RestingHeartRate")
+        val sleepTypes = types.filter { it.key in want }
+        if (sleepTypes.none { it.key == "SleepSession" }) {
+            progress("Sleep recovery skipped (no SleepSession permission)")
+            return
+        }
+        val now = Instant.now()
+        val from = now.minus(Duration.ofDays(days.toLong()))
+        progress("Recovering sleep · last $days night(s)")
+        val recs = readTypesParallel(client, sleepTypes, from, now)
+        if (recs.isEmpty()) {
+            progress("No sleep records in Health Connect for the last $days day(s)")
+            return
+        }
+        send(api, token, "sleep-recover", recs, emptyList(), emptyList())
     }
 
     private fun featureOn(client: HealthConnectClient, f: Int) =

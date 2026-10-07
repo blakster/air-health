@@ -21,8 +21,8 @@ android {
         applicationId = "com.vansh.airhealth.sync"
         minSdk = 28
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         buildConfigField("String", "DEFAULT_SERVER", "\"http://YOUR_TAILSCALE_IP:4870\"")
     }
 

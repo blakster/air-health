@@ -50,9 +50,17 @@ class Api(private val server: String) {
         return read(c)
     }
 
-    /** [ackResync]: the sync engine takes over a "resend everything" request (the status screen does not). */
-    fun status(token: String, ackResync: Boolean = false): JSONObject {
-        val c = open(if (ackResync) "/api/hc/status?ack=resync" else "/api/hc/status", "GET")
+    /**
+     * [ackResync]: sync engine takes a "resend everything" request.
+     * [ackSleepResync]: sync engine takes a sleep-only recent-window re-read (no full history).
+     */
+    fun status(token: String, ackResync: Boolean = false, ackSleepResync: Boolean = false): JSONObject {
+        val ack = when {
+            ackResync -> "?ack=resync"
+            ackSleepResync -> "?ack=sleepResync"
+            else -> ""
+        }
+        val c = open("/api/hc/status$ack", "GET")
         c.setRequestProperty("Authorization", "Bearer $token")
         return read(c)
     }
