@@ -249,6 +249,59 @@ function mixBar(parts) {
   const cap = parts.filter((p) => p.value > 0).map((p) => `<span><b class="${p.tone}"></b>${esc(p.label)} ${fmt(p.value)}m</span>`).join('');
   return `<figure class="mix"><div>${segs}</div><figcaption>${cap}</figcaption></figure>`;
 }
+
+/** Last-night sleep strip: stage bands + compact stats (Apple Health / Fitbit / Oura inspired). */
+function sleepStageStrip(sleep) {
+  if (!sleep || sleep.sleep_minutes == null) {
+    return `<section class="today-sleep empty" aria-label="Last night sleep">
+      <h2 class="section-label">Last night</h2>
+      <p class="calm">No sleep recorded. Wear the band to bed to see stages here.</p>
+    </section>`;
+  }
+  const deep = sleep.sleep_deep, light = sleep.sleep_light, rem = sleep.sleep_rem, wake = sleep.sleep_wake;
+  const hasStages = [deep, light, rem].some((v) => v != null && v > 0);
+  const stages = [
+    { key: 'deep', label: 'Deep', tone: 'deep', min: deep || 0 },
+    { key: 'light', label: 'Light', tone: 'light', min: light || 0 },
+    { key: 'rem', label: 'REM', tone: 'rem', min: rem || 0 },
+    { key: 'wake', label: 'Awake', tone: 'wake', min: wake || 0 },
+  ];
+  const total = stages.reduce((s, x) => s + x.min, 0) || sleep.sleep_minutes;
+  const bands = hasStages
+    ? stages.filter((x) => x.min > 0).map((x) => {
+        const pct = (x.min / total) * 100;
+        return `<i class="${x.tone}" style="width:${pct.toFixed(2)}%" title="${esc(x.label)} ${hm(x.min)}"></i>`;
+      }).join('')
+    : `<i class="asleep" style="width:100%" title="Asleep ${hm(sleep.sleep_minutes)}"></i>`;
+  const legend = hasStages
+    ? stages.filter((x) => x.min > 0).map((x) => `<span><b class="${x.tone}"></b>${esc(x.label)} <em class="n">${hm(x.min)}</em></span>`).join('')
+    : `<span><b class="asleep"></b>Asleep <em class="n">${hm(sleep.sleep_minutes)}</em></span>`;
+  const bed = clock(sleep.bed_clock);
+  const wakeClk = clock(sleep.wake_clock);
+  const timing = (sleep.bed_clock != null || sleep.wake_clock != null)
+    ? `<span class="ts-timing"><span class="n">${bed}</span><span class="ts-arrow" aria-hidden="true">→</span><span class="n">${wakeClk}</span></span>`
+    : '';
+  const score = sleep.sleep_score != null
+    ? `<li><span>Score</span><strong class="n">${fmt(sleep.sleep_score)}</strong></li>`
+    : '';
+  const sub = sleep.date ? `Night ending ${esc(dShort(sleep.date))}` : 'Asleep last night';
+  return `<section class="today-sleep" aria-label="Last night sleep">
+    <div class="ts-head">
+      <h2 class="section-label">Last night</h2>
+      <p class="ts-sub">${sub}</p>
+    </div>
+    <ul class="ts-stats">
+      <li><span>Asleep</span><strong class="n" style="color:var(--sleep)">${hmSpaced(sleep.sleep_minutes)}</strong></li>
+      ${score}
+      ${timing ? `<li class="ts-span"><span>Bed → wake</span><strong>${timing}</strong></li>` : ''}
+    </ul>
+    <figure class="ts-stages${hasStages ? '' : ' classic'}">
+      <div class="ts-band" role="img" aria-label="${hasStages ? 'Sleep stages' : 'Time asleep'}">${bands}</div>
+      <figcaption>${legend}</figcaption>
+    </figure>
+  </section>`;
+}
+
 function pageToday() {
   const c = C();
   const { date, row, isCalendar } = resolveToday();
@@ -301,6 +354,7 @@ function pageToday() {
     <h1>${dFull(date)}</h1>
     <p class="lede today-lede">${ledeText}</p>
   </div></header>
+  ${sleepStageStrip(sleep)}
   ${intradayCard({ locked: true })}
   <section class="today-activity" aria-label="Steps and activity">
     <div class="goal-row">

@@ -354,6 +354,59 @@ main:has(.coach-page){display:flex;flex-direction:column;padding-bottom:0}
 .chart.is-empty .nodata{margin:0;text-align:center;max-width:32ch;color:var(--text-3);font-size:.875rem}
 .card [hidden],.block [hidden]{display:none!important}
 
+
+/* ---- Today last-night sleep (open ledger; Apple/Fitbit/Oura stage bands) ---- */
+.today-sleep{
+  margin:0 0 1.35rem;padding:0 0 1.35rem;border-bottom:1px solid var(--line);
+  background:transparent;box-shadow:none;border-radius:0;
+}
+.today-sleep.empty{padding-bottom:1.1rem}
+.ts-head{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin:0 0 .55rem}
+.today-sleep .section-label{margin:0}
+.ts-sub{margin:0;font-size:.8125rem;color:var(--text-3)}
+.ts-stats{
+  list-style:none;display:flex;flex-wrap:wrap;gap:.55rem 1.35rem;
+  padding:0;margin:0 0 .95rem;align-items:baseline;
+}
+.ts-stats li{display:flex;flex-direction:column;gap:.12rem;min-width:0}
+.ts-stats span{color:var(--text-3);font-size:.75rem;letter-spacing:.01em}
+.ts-stats strong{
+  font:460 clamp(1.35rem,.85rem + .9vw,1.75rem)/1.05 var(--serif);
+  letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--text);
+}
+.ts-stats .ts-span strong{font-size:clamp(1.05rem,.7rem + .55vw,1.25rem);font-weight:460}
+.ts-timing{display:inline-flex;align-items:baseline;gap:.4rem;font-variant-numeric:tabular-nums}
+.ts-arrow{color:var(--text-3);font-weight:430}
+.ts-stages{margin:0}
+.ts-band{
+  display:flex;height:22px;border-radius:6px;overflow:hidden;
+  background:var(--line);
+}
+.ts-band i{display:block;height:100%;min-width:2px}
+.ts-band .deep{background:var(--sleep)}
+.ts-band .light{background:var(--sleep-light)}
+.ts-band .rem{background:var(--rem)}
+.ts-band .wake{background:var(--wake)}
+.ts-band .asleep{background:var(--sleep)}
+.ts-stages figcaption{
+  display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin-top:.55rem;
+  color:var(--text-3);font-size:.8125rem;
+}
+.ts-stages figcaption b{
+  display:inline-block;width:8px;height:8px;border-radius:2px;
+  margin-inline-end:6px;vertical-align:1px;
+}
+.ts-stages figcaption b.deep{background:var(--sleep)}
+.ts-stages figcaption b.light{background:var(--sleep-light)}
+.ts-stages figcaption b.rem{background:var(--rem)}
+.ts-stages figcaption b.wake{background:var(--wake)}
+.ts-stages figcaption b.asleep{background:var(--sleep)}
+.ts-stages figcaption em{font-style:normal;color:var(--text-2);font-variant-numeric:tabular-nums}
+@media (max-width:760px){
+  .ts-stats{gap:.65rem 1.05rem}
+  .ts-band{height:18px}
+}
+
 /* ---- Today tab (day-scoped, open Fathom column) ---- */
 .dayhead .today-lede{margin:.85rem 0 0;font:460 clamp(1.15rem,.9rem + 1vw,1.55rem)/1.25 var(--serif);letter-spacing:-.02em;max-width:42ch;color:var(--text-2)}
 .dayhead .today-lede .n{font-weight:620;color:var(--text)}
