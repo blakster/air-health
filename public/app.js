@@ -250,7 +250,105 @@ function mixBar(parts) {
   return `<figure class="mix"><div>${segs}</div><figcaption>${cap}</figcaption></figure>`;
 }
 
-/** Last-night sleep strip: stage bands + compact stats (Apple Health / Fitbit / Oura inspired). */
+/** Pack / merge adjacent stage epochs [{t,s,d}]. */
+function packSleepEpochs(segs) {
+  if (!segs || !segs.length) return null;
+  const out = [];
+  for (const g of segs) {
+    if (!g || !g.t || !(g.d > 0)) continue;
+    const s = Math.max(0, +g.s || 0), d = Math.max(1, Math.round(+g.d));
+    const last = out[out.length - 1];
+    if (last && last.t === g.t && last.s + last.d === Math.round(s)) last.d += d;
+    else out.push({ t: g.t, s: Math.round(s), d });
+  }
+  return out.length ? out : null;
+}
+/** Prefer real epoch series from the day row or matching sleep session. */
+function sleepEpochsFor(sleep) {
+  if (!sleep) return null;
+  const fromRow = packSleepEpochs(sleep.sleep_stages);
+  if (fromRow) return { epochs: fromRow, source: 'real' };
+  const sess = (D.sleep || []).find((s) => s.date === sleep.date && Array.isArray(s.stages) && s.stages.length);
+  const fromSess = packSleepEpochs(sess && sess.stages);
+  if (fromSess) return { epochs: fromSess, source: 'real' };
+  return null;
+}
+/**
+ * Plausible chronological stage sequence from aggregate minutes
+ * (when Takeout/HC only shipped totals). Consumes all minutes; early deep, late REM.
+ */
+function synthSleepEpochs(deep, light, rem, wake) {
+  const left = { deep: deep || 0, light: light || 0, rem: rem || 0, wake: wake || 0 };
+  const total = left.deep + left.light + left.rem + left.wake;
+  if (total <= 0) return null;
+  const cycles = Math.max(1, Math.round(total / 90));
+  const out = []; let t = 0;
+  const emit = (k, n) => {
+    n = Math.min(left[k], Math.max(0, Math.round(n)));
+    if (n <= 0) return;
+    left[k] -= n;
+    const last = out[out.length - 1];
+    if (last && last.t === k) last.d += n;
+    else out.push({ t: k, s: t, d: n });
+    t += n;
+  };
+  emit('wake', Math.min(left.wake, Math.max(1, Math.round((wake || 0) * 0.12))));
+  for (let c = 0; c < cycles; c++) {
+    const frac = (c + 0.5) / cycles;
+    const budget = total / cycles;
+    const deepW = frac < 0.5 ? 1.35 : 0.45;
+    const remW = frac < 0.35 ? 0.35 : 1.45;
+    emit('light', budget * 0.22);
+    emit('deep', budget * 0.28 * deepW);
+    emit('light', budget * 0.18);
+    emit('rem', budget * 0.22 * remW);
+    if (c < cycles - 1) emit('wake', budget * 0.08);
+  }
+  for (const k of ['light', 'deep', 'rem', 'wake']) emit(k, left[k]);
+  return out.length ? out : null;
+}
+/** Apple Health–style hypnogram: X = bed→wake, Y = Awake/REM/Light/Deep lanes. */
+function sleepHypnoSvg(epochs, bedClock, wakeClock, totalMin) {
+  const W = 640, H = 118;
+  const padL = 48, padR = 10, padT = 8, padB = 24;
+  const lanes = [
+    { t: 'wake', label: 'Awake' },
+    { t: 'rem', label: 'REM' },
+    { t: 'light', label: 'Light' },
+    { t: 'deep', label: 'Deep' },
+  ];
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const laneH = plotH / 4, barH = laneH * 0.7;
+  const xOf = (m) => padL + (Math.max(0, Math.min(totalMin, m)) / Math.max(1, totalMin)) * plotW;
+  const laneY = (i) => padT + i * laneH + (laneH - barH) / 2;
+  const laneIx = Object.fromEntries(lanes.map((l, i) => [l.t, i]));
+  const labs = lanes.map((l, i) => {
+    const y = padT + i * laneH + laneH / 2;
+    return `<text class="lane-lab" x="${padL - 6}" y="${y}" dominant-baseline="middle" text-anchor="end">${esc(l.label)}</text>`;
+  }).join('');
+  const grids = lanes.map((_, i) => (i < 3 ? `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${padT + (i + 1) * laneH}" y2="${padT + (i + 1) * laneH}" />` : '')).join('');
+  const rects = epochs.map((g) => {
+    const i = laneIx[g.t]; if (i == null) return '';
+    const x = xOf(g.s), w = Math.max(1.5, xOf(g.s + g.d) - x);
+    const label = ({ deep: 'Deep', light: 'Light', rem: 'REM', wake: 'Awake' })[g.t] || g.t;
+    return `<rect class="${g.t}" x="${x.toFixed(2)}" y="${laneY(i).toFixed(2)}" width="${w.toFixed(2)}" height="${barH.toFixed(2)}" rx="1.5"><title>${esc(label)} ${hm(g.d)}</title></rect>`;
+  }).join('');
+  const bedMin = bedClock != null ? Math.round(bedClock + 720) % 1440 : 0;
+  const fmtAbs = (abs) => `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+  const ticks = [];
+  const pushTick = (off, label, major) => {
+    const x = xOf(off);
+    ticks.push(`<line class="tick${major ? ' major' : ''}" x1="${x.toFixed(2)}" x2="${x.toFixed(2)}" y1="${H - padB}" y2="${H - padB + (major ? 5 : 3)}" />`);
+    if (label) ticks.push(`<text class="axis" x="${x.toFixed(2)}" y="${H - 4}" text-anchor="${off === 0 ? 'start' : off >= totalMin ? 'end' : 'middle'}">${esc(label)}</text>`);
+  };
+  pushTick(0, bedClock != null ? clock(bedClock) : fmtAbs(bedMin), true);
+  const step = totalMin > 400 ? 120 : totalMin > 240 ? 60 : 30;
+  for (let m = step; m < totalMin - step / 2; m += step) pushTick(m, fmtAbs((bedMin + m) % 1440), false);
+  pushTick(totalMin, wakeClock != null ? clock(wakeClock) : fmtAbs((bedMin + totalMin) % 1440), true);
+  return `<svg class="ts-hypno-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sleep stages from bedtime to wake" preserveAspectRatio="xMidYMid meet">${labs}${grids}${rects}${ticks.join('')}</svg>`;
+}
+
+/** Last-night sleep: real time-axis hypnogram (Apple Health / Fitbit stage timeline). */
 function sleepStageStrip(sleep) {
   if (!sleep || sleep.sleep_minutes == null) {
     return `<section class="today-sleep empty" aria-label="Last night sleep">
@@ -260,22 +358,22 @@ function sleepStageStrip(sleep) {
   }
   const deep = sleep.sleep_deep, light = sleep.sleep_light, rem = sleep.sleep_rem, wake = sleep.sleep_wake;
   const hasStages = [deep, light, rem].some((v) => v != null && v > 0);
-  const stages = [
+  const stageMeta = [
     { key: 'deep', label: 'Deep', tone: 'deep', min: deep || 0 },
     { key: 'light', label: 'Light', tone: 'light', min: light || 0 },
     { key: 'rem', label: 'REM', tone: 'rem', min: rem || 0 },
     { key: 'wake', label: 'Awake', tone: 'wake', min: wake || 0 },
   ];
-  const total = stages.reduce((s, x) => s + x.min, 0) || sleep.sleep_minutes;
-  const bands = hasStages
-    ? stages.filter((x) => x.min > 0).map((x) => {
-        const pct = (x.min / total) * 100;
-        return `<i class="${x.tone}" style="width:${pct.toFixed(2)}%" title="${esc(x.label)} ${hm(x.min)}"></i>`;
-      }).join('')
-    : `<i class="asleep" style="width:100%" title="Asleep ${hm(sleep.sleep_minutes)}"></i>`;
-  const legend = hasStages
-    ? stages.filter((x) => x.min > 0).map((x) => `<span><b class="${x.tone}"></b>${esc(x.label)} <em class="n">${hm(x.min)}</em></span>`).join('')
-    : `<span><b class="asleep"></b>Asleep <em class="n">${hm(sleep.sleep_minutes)}</em></span>`;
+  const tib = sleep.time_in_bed || (stageMeta.reduce((s, x) => s + x.min, 0)) || sleep.sleep_minutes;
+  let epochs = null, epochSource = null;
+  if (hasStages) {
+    const real = sleepEpochsFor(sleep);
+    if (real) { epochs = real.epochs; epochSource = 'real'; }
+    else { epochs = synthSleepEpochs(deep, light, rem, wake); epochSource = 'synth'; }
+  }
+  const span = epochs && epochs.length
+    ? Math.max(tib, ...epochs.map((g) => g.s + g.d))
+    : tib;
   const bed = clock(sleep.bed_clock);
   const wakeClk = clock(sleep.wake_clock);
   const timing = (sleep.bed_clock != null || sleep.wake_clock != null)
@@ -285,6 +383,36 @@ function sleepStageStrip(sleep) {
     ? `<li><span>Score</span><strong class="n">${fmt(sleep.sleep_score)}</strong></li>`
     : '';
   const sub = sleep.date ? `Night ending ${esc(dShort(sleep.date))}` : 'Asleep last night';
+  const legend = hasStages
+    ? stageMeta.filter((x) => x.min > 0).map((x) => `<span><b class="${x.tone}"></b>${esc(x.label)} <em class="n">${hm(x.min)}</em></span>`).join('')
+    : `<span><b class="asleep"></b>Asleep <em class="n">${hm(sleep.sleep_minutes)}</em></span>`;
+  const note = epochSource === 'synth'
+    ? `<p class="ts-note">Stage order estimated from totals — upload or sync epoch stages when available.</p>`
+    : (epochSource === 'real' ? '' : '');
+  const figure = epochs && epochs.length && sleep.bed_clock != null
+    ? `<figure class="ts-hypno">
+        ${sleepHypnoSvg(epochs, sleep.bed_clock, sleep.wake_clock, span)}
+        <figcaption>${legend}</figcaption>
+        ${note}
+      </figure>`
+    : hasStages
+      ? (() => {
+          // Fallback chronological strip (no bed clock): widths = duration along time, not % mix.
+          const bands = epochs.map((g) => {
+            const pct = (g.d / span) * 100;
+            const label = ({ deep: 'Deep', light: 'Light', rem: 'REM', wake: 'Awake' })[g.t] || g.t;
+            return `<i class="${g.t}" style="width:${pct.toFixed(2)}%" title="${esc(label)} ${hm(g.d)}"></i>`;
+          }).join('');
+          return `<figure class="ts-stages">
+            <div class="ts-band" role="img" aria-label="Sleep stages along the night">${bands}</div>
+            <figcaption>${legend}</figcaption>
+            ${note}
+          </figure>`;
+        })()
+      : `<figure class="ts-stages classic">
+          <div class="ts-band" role="img" aria-label="Time asleep"><i class="asleep" style="width:100%" title="Asleep ${hm(sleep.sleep_minutes)}"></i></div>
+          <figcaption>${legend}</figcaption>
+        </figure>`;
   return `<section class="today-sleep" aria-label="Last night sleep">
     <div class="ts-head">
       <h2 class="section-label">Last night</h2>
@@ -295,10 +423,88 @@ function sleepStageStrip(sleep) {
       ${score}
       ${timing ? `<li class="ts-span"><span>Bed → wake</span><strong>${timing}</strong></li>` : ''}
     </ul>
-    <figure class="ts-stages${hasStages ? '' : ' classic'}">
-      <div class="ts-band" role="img" aria-label="${hasStages ? 'Sleep stages' : 'Time asleep'}">${bands}</div>
-      <figcaption>${legend}</figcaption>
-    </figure>
+    ${figure}
+  </section>`;
+}
+
+/**
+ * Today steps: hourly bars through the day + cumulative progress vs goal
+ * (Apple Fitness / Fitbit activity inspired; open ledger).
+ */
+function stepsDayStrip(row, goal) {
+  const steps = row && row.steps != null ? row.steps : null;
+  const hourly = Array.isArray(row && row.steps_hourly) && row.steps_hourly.length === 24
+    ? row.steps_hourly.map((n) => Math.max(0, +n || 0))
+    : null;
+  const pct = steps != null && goal ? Math.min(100, (steps / goal) * 100) : 0;
+  if (steps == null && !hourly) {
+    return `<section class="today-steps empty" aria-label="Steps today">
+      <h2 class="section-label">Steps</h2>
+      <p class="calm">No steps yet today. Wear the band and sync to fill the day.</p>
+    </section>`;
+  }
+  const nowParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date());
+  const nowH = +nowParts.find((x) => x.type === 'hour').value;
+  const nowM = +nowParts.find((x) => x.type === 'minute').value;
+  const nowMin = nowH * 60 + nowM;
+  const nowHour = Math.min(23, nowH);
+  let chart = '';
+  if (hourly) {
+    const peak = Math.max(1, ...hourly);
+    const cum = []; let run = 0;
+    for (let i = 0; i < 24; i++) { run += hourly[i]; cum.push(run); }
+    const bars = hourly.map((n, i) => {
+      const h = Math.max(n > 0 ? 4 : 0, (n / peak) * 100);
+      const on = i <= nowHour;
+      return `<i class="hr${on ? ' on' : ''}${i === nowHour ? ' now' : ''}" style="height:${h.toFixed(1)}%" title="${String(i).padStart(2, '0')}:00 · ${fmt(n)} steps"></i>`;
+    }).join('');
+    // Cumulative polyline in a sibling SVG overlay (0–100% height = 0–max(cum, goal))
+    const maxCum = Math.max(cum[23] || 1, goal || 1);
+    const pts = cum.map((v, i) => {
+      const x = ((i + 0.5) / 24) * 100;
+      const y = 100 - (v / maxCum) * 100;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(' ');
+    const goalLine = goal
+      ? `<line class="goal-line" x1="0" x2="100" y1="${(100 - (goal / maxCum) * 100).toFixed(2)}" y2="${(100 - (goal / maxCum) * 100).toFixed(2)}" />`
+      : '';
+    const paceX = (nowMin / 1440) * 100;
+    chart = `<figure class="st-day">
+      <div class="st-bars" role="img" aria-label="Steps each hour">${bars}</div>
+      <svg class="st-cum" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${goalLine}<polyline class="cum" points="${pts}" /><line class="now-line" x1="${paceX.toFixed(2)}" x2="${paceX.toFixed(2)}" y1="0" y2="100" /></svg>
+      <div class="st-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+      <figcaption>
+        <span><b class="bar"></b>Hourly</span>
+        <span><b class="cum"></b>Cumulative</span>
+        ${goal ? `<span><b class="goal"></b>Goal ${fmt(goal)}</span>` : ''}
+      </figcaption>
+    </figure>`;
+  } else {
+    // No hourly series: open progress track + expected pace marker for time of day.
+    const expected = goal ? Math.round(goal * (nowMin / 1440)) : null;
+    const ahead = steps != null && expected != null ? steps - expected : null;
+    const paceNote = ahead == null ? ''
+      : ahead >= 0 ? `${fmt(ahead)} ahead of even pace`
+      : `${fmt(-ahead)} behind even pace`;
+    chart = `<figure class="st-progress">
+      <div class="st-track" role="img" aria-label="${Math.round(pct)} percent of step goal">
+        <span class="st-fill" style="width:${pct.toFixed(1)}%"></span>
+        ${expected != null && goal ? `<i class="st-pace" style="left:${Math.min(100, (expected / goal) * 100).toFixed(1)}%" title="Even pace ${fmt(expected)}"></i>` : ''}
+      </div>
+      <figcaption>${paceNote ? `<span>${esc(paceNote)}</span>` : '<span>Through the day</span>'}</figcaption>
+    </figure>`;
+  }
+  return `<section class="today-steps" aria-label="Steps today">
+    <div class="ts-head">
+      <h2 class="section-label">Steps</h2>
+      <p class="ts-sub">${steps != null ? `${Math.round(pct)}% of ${fmt(goal)}` : 'Today'}</p>
+    </div>
+    <ul class="ts-stats">
+      <li><span>So far</span><strong class="n" style="color:var(--steps)">${steps != null ? fmt(steps) : '—'}</strong></li>
+      <li><span>Goal</span><strong class="n">${fmt(goal)}</strong></li>
+      ${row && row.distance_km != null ? `<li><span>Distance</span><strong class="n">${fmt(row.distance_km, 2)} km</strong></li>` : ''}
+    </ul>
+    ${chart}
   </section>`;
 }
 
@@ -356,11 +562,8 @@ function pageToday() {
   </div></header>
   ${sleepStageStrip(sleep)}
   ${intradayCard({ locked: true })}
-  <section class="today-activity" aria-label="Steps and activity">
-    <div class="goal-row">
-      <div class="goal-meta"><span class="goal-label">Step mark</span><strong>${steps != null ? fmt(steps) : '—'}</strong><span class="goal-of">of ${fmt(goal)}</span></div>
-      ${markbar(steps != null ? (steps / goal) * 100 : 0)}
-    </div>
+  ${stepsDayStrip(row, goal)}
+  <section class="today-activity" aria-label="Activity mix">
     ${mixBar([
       { label: 'Light', value: row.light_minutes || 0, tone: 'light' },
       { label: 'Fair', value: row.fairly_active_minutes || 0, tone: 'fair' },

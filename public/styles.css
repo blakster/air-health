@@ -355,14 +355,14 @@ main:has(.coach-page){display:flex;flex-direction:column;padding-bottom:0}
 .card [hidden],.block [hidden]{display:none!important}
 
 
-/* ---- Today last-night sleep (open ledger; Apple/Fitbit/Oura stage bands) ---- */
-.today-sleep{
+/* ---- Today last-night sleep (open ledger; time-axis hypnogram) ---- */
+.today-sleep,.today-steps{
   margin:0 0 1.35rem;padding:0 0 1.35rem;border-bottom:1px solid var(--line);
   background:transparent;box-shadow:none;border-radius:0;
 }
-.today-sleep.empty{padding-bottom:1.1rem}
+.today-sleep.empty,.today-steps.empty{padding-bottom:1.1rem}
 .ts-head{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin:0 0 .55rem}
-.today-sleep .section-label{margin:0}
+.today-sleep .section-label,.today-steps .section-label{margin:0}
 .ts-sub{margin:0;font-size:.8125rem;color:var(--text-3)}
 .ts-stats{
   list-style:none;display:flex;flex-wrap:wrap;gap:.55rem 1.35rem;
@@ -377,7 +377,7 @@ main:has(.coach-page){display:flex;flex-direction:column;padding-bottom:0}
 .ts-stats .ts-span strong{font-size:clamp(1.05rem,.7rem + .55vw,1.25rem);font-weight:460}
 .ts-timing{display:inline-flex;align-items:baseline;gap:.4rem;font-variant-numeric:tabular-nums}
 .ts-arrow{color:var(--text-3);font-weight:430}
-.ts-stages{margin:0}
+.ts-stages,.ts-hypno{margin:0}
 .ts-band{
   display:flex;height:22px;border-radius:6px;overflow:hidden;
   background:var(--line);
@@ -388,23 +388,100 @@ main:has(.coach-page){display:flex;flex-direction:column;padding-bottom:0}
 .ts-band .rem{background:var(--rem)}
 .ts-band .wake{background:var(--wake)}
 .ts-band .asleep{background:var(--sleep)}
-.ts-stages figcaption{
+.ts-hypno-svg{
+  display:block;width:100%;height:auto;max-height:140px;
+  background:transparent;
+}
+.ts-hypno-svg .lane-lab,.ts-hypno-svg .axis{
+  fill:var(--text-3);font-size:10px;
+  font-family:"Schibsted Grotesk","Avenir Next",system-ui,sans-serif;
+}
+.ts-hypno-svg .grid{stroke:var(--line);stroke-width:1}
+.ts-hypno-svg .tick{stroke:var(--text-3);stroke-width:1;opacity:.55}
+.ts-hypno-svg .tick.major{opacity:.9}
+.ts-hypno-svg rect.deep{fill:var(--sleep)}
+.ts-hypno-svg rect.light{fill:var(--sleep-light)}
+.ts-hypno-svg rect.rem{fill:var(--rem)}
+.ts-hypno-svg rect.wake{fill:var(--wake)}
+.ts-note{margin:.45rem 0 0;font-size:.75rem;color:var(--text-3)}
+.ts-stages figcaption,.ts-hypno figcaption{
   display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin-top:.55rem;
   color:var(--text-3);font-size:.8125rem;
 }
-.ts-stages figcaption b{
+.ts-stages figcaption b,.ts-hypno figcaption b{
   display:inline-block;width:8px;height:8px;border-radius:2px;
   margin-inline-end:6px;vertical-align:1px;
 }
-.ts-stages figcaption b.deep{background:var(--sleep)}
-.ts-stages figcaption b.light{background:var(--sleep-light)}
-.ts-stages figcaption b.rem{background:var(--rem)}
-.ts-stages figcaption b.wake{background:var(--wake)}
-.ts-stages figcaption b.asleep{background:var(--sleep)}
-.ts-stages figcaption em{font-style:normal;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ts-stages figcaption b.deep,.ts-hypno figcaption b.deep{background:var(--sleep)}
+.ts-stages figcaption b.light,.ts-hypno figcaption b.light{background:var(--sleep-light)}
+.ts-stages figcaption b.rem,.ts-hypno figcaption b.rem{background:var(--rem)}
+.ts-stages figcaption b.wake,.ts-hypno figcaption b.wake{background:var(--wake)}
+.ts-stages figcaption b.asleep,.ts-hypno figcaption b.asleep{background:var(--sleep)}
+.ts-stages figcaption em,.ts-hypno figcaption em{font-style:normal;color:var(--text-2);font-variant-numeric:tabular-nums}
+
+/* ---- Today steps through-day (hourly + cumulative vs goal) ---- */
+.st-day{margin:0;position:relative}
+.st-bars{
+  display:flex;align-items:flex-end;gap:3px;height:88px;
+  padding:0 0 2px;border-bottom:1px solid var(--line);
+}
+.st-bars i{
+  flex:1;min-width:0;border-radius:3px 3px 1px 1px;
+  background:color-mix(in srgb, var(--steps) 28%, transparent);
+  transition:background .15s ease;
+}
+.st-bars i.on{background:color-mix(in srgb, var(--steps) 72%, transparent)}
+.st-bars i.now{background:var(--steps)}
+.st-cum{
+  position:absolute;left:0;right:0;top:0;height:88px;
+  pointer-events:none;overflow:visible;
+}
+.st-cum .cum{
+  fill:none;stroke:var(--text);stroke-width:1.6;
+  stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke;
+  opacity:.85;
+}
+.st-cum .goal-line{
+  stroke:var(--persimmon);stroke-width:1;stroke-dasharray:3 3;
+  vector-effect:non-scaling-stroke;opacity:.75;
+}
+.st-cum .now-line{
+  stroke:var(--text-3);stroke-width:1;stroke-dasharray:2 3;
+  vector-effect:non-scaling-stroke;opacity:.55;
+}
+.st-axis{
+  display:flex;justify-content:space-between;margin-top:.35rem;
+  color:var(--text-3);font-size:.7rem;font-variant-numeric:tabular-nums;
+}
+.st-day figcaption,.st-progress figcaption{
+  display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin-top:.55rem;
+  color:var(--text-3);font-size:.8125rem;
+}
+.st-day figcaption b,.st-progress figcaption b{
+  display:inline-block;width:8px;height:8px;border-radius:2px;
+  margin-inline-end:6px;vertical-align:1px;
+}
+.st-day figcaption b.bar{background:var(--steps)}
+.st-day figcaption b.cum{background:var(--text);border-radius:1px;height:2px;width:12px;vertical-align:3px}
+.st-day figcaption b.goal{background:var(--persimmon);border-radius:1px;height:2px;width:12px;vertical-align:3px}
+.st-progress{margin:0}
+.st-track{
+  position:relative;height:12px;border-radius:999px;background:var(--line);overflow:visible;
+}
+.st-fill{
+  display:block;height:100%;border-radius:999px;background:var(--steps);
+  min-width:0;
+}
+.st-pace{
+  position:absolute;top:50%;width:2px;height:18px;margin-top:-9px;
+  background:var(--persimmon);border-radius:1px;
+  transform:translateX(-50%);
+}
 @media (max-width:760px){
   .ts-stats{gap:.65rem 1.05rem}
   .ts-band{height:18px}
+  .st-bars{height:72px;gap:2px}
+  .st-cum{height:72px}
 }
 
 /* ---- Today tab (day-scoped, open Fathom column) ---- */
